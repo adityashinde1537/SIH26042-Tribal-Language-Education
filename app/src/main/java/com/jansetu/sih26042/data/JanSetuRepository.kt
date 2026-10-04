@@ -10,6 +10,7 @@ import com.jansetu.sih26042.data.remote.WorksheetRequest
 import com.jansetu.sih26042.data.remote.WorksheetResponse
 import com.jansetu.sih26042.data.remote.WorksheetRow
 import java.io.IOException
+import retrofit2.HttpException
 
 data class TranslationResult(
     val translatedText: String,
@@ -43,6 +44,29 @@ class JanSetuRepository(
 
     fun saveBackendUrl(url: String): Result<String> = runCatching {
         ApiFactory.setBackendUrl(url)
+    }
+
+    suspend fun testBackend(): Result<String> = runCatching {
+        val health = ApiFactory.api().health()
+        require(health.status == "ok") { "Backend health response was not OK" }
+        "Connected to " + ApiFactory.backendUrl() +
+            " • " + health.sourceLexiconItems + " source terms"
+    }
+
+    private fun httpProblem(http: HttpException, endpoint: String): IOException {
+        val current = ApiFactory.backendUrl()
+        return if (http.code() == 404) {
+            IOException(
+                "Backend is reachable, but " + endpoint + " returned HTTP 404. " +
+                    "Save the API root URL, not the Swagger /docs URL. Current base: " + current,
+                http
+            )
+        } else {
+            IOException(
+                "Backend returned HTTP " + http.code() + " for " + endpoint + ". Base: " + current,
+                http
+            )
+        }
     }
 
     private suspend fun composeOffline(source: String): TranslationResult? {
@@ -104,10 +128,13 @@ class JanSetuRepository(
             val response = ApiFactory.api().translate(TranslationRequest(source))
             dao.upsert(TranslationEntity(source, response.translatedText, response.engine))
             TranslationResult(response.translatedText, response.latencyMs, response.engine, false)
+        } catch (http: HttpException) {
+            throw httpProblem(http, "/translate")
         } catch (network: IOException) {
             composeOffline(source)
                 ?: throw IOException(
-                    "No offline translation is available for this sentence. Use a built-in demo phrase, sync the library, or set a reachable backend URL.",
+                    "No offline translation is available for this sentence. " +
+                        "Check the backend connection or use a bundled demo phrase.",
                     network
                 )
         }
@@ -119,7 +146,12 @@ class JanSetuRepository(
         }
         dao.upsertAll(builtIns)
 
-        val remoteItems = runCatching { ApiFactory.api().seedPack() }.getOrNull()?.items.orEmpty()
+        val remoteItems = try {
+            ApiFactory.api().seedPack().items
+        } catch (_: Exception) {
+            emptyList()
+        }
+
         if (remoteItems.isNotEmpty()) {
             dao.upsertAll(
                 remoteItems.map {
@@ -133,12 +165,22 @@ class JanSetuRepository(
 
     suspend fun syncFullLexicon(pageSize: Int = 20): Result<LexiconSyncResult> = runCatching {
         val api = ApiFactory.api()
-        val initial = api.lexiconMeta()
+        val initial = try {
+            api.lexiconMeta()
+        } catch (http: HttpException) {
+            throw httpProblem(http, "/lexicon/meta")
+        }
+
         var offset = 0
         var downloaded = 0
 
         while (offset < initial.sourceTerms) {
-            val page = api.lexiconPage(offset = offset, limit = pageSize, generate = true)
+            val page = try {
+                api.lexiconPage(offset = offset, limit = pageSize, generate = true)
+            } catch (http: HttpException) {
+                throw httpProblem(http, "/lexicon/page")
+            }
+
             if (page.items.isNotEmpty()) {
                 dao.upsertAll(
                     page.items.map {
@@ -172,6 +214,8 @@ class JanSetuRepository(
     ): Result<WorksheetResponse> = runCatching {
         try {
             ApiFactory.api().worksheet(WorksheetRequest(title, prompts, nipunDomain))
+        } catch (http: HttpException) {
+            throw httpProblem(http, "/materials/worksheet")
         } catch (network: IOException) {
             val rows = prompts.mapIndexed { index, text ->
                 val local = translate(text).getOrThrow()
@@ -187,6 +231,8 @@ class JanSetuRepository(
     ): Result<List<Flashcard>> = runCatching {
         try {
             ApiFactory.api().flashcards(FlashcardRequest(terms, nipunDomain)).cards
+        } catch (http: HttpException) {
+            throw httpProblem(http, "/materials/flashcards")
         } catch (network: IOException) {
             terms.map { text ->
                 val local = translate(text).getOrThrow()

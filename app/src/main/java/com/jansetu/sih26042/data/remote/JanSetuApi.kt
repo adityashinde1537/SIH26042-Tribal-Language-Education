@@ -6,6 +6,9 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 interface JanSetuApi {
+    @GET("health")
+    suspend fun health(): HealthResponse
+
     @POST("translate")
     suspend fun translate(@Body request: TranslationRequest): TranslationResponse
 

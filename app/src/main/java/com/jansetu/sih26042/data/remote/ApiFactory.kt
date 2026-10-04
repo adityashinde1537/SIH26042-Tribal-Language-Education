@@ -3,6 +3,7 @@ package com.jansetu.sih26042.data.remote
 import android.content.Context
 import com.jansetu.sih26042.BuildConfig
 import java.util.concurrent.TimeUnit
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -30,21 +31,53 @@ object ApiFactory {
 
     fun backendUrl(): String {
         check(::appContext.isInitialized) { "ApiFactory.init(context) must be called first" }
-        return appContext
+        val stored = appContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_BACKEND_URL, BuildConfig.JANSETU_API_BASE_URL)
-            ?.ensureSlash()
-            ?: BuildConfig.JANSETU_API_BASE_URL.ensureSlash()
+            ?: BuildConfig.JANSETU_API_BASE_URL
+
+        return normalizeBackendUrl(stored)
+    }
+
+    fun normalizeBackendUrl(raw: String): String {
+        val parsed = raw.trim().toHttpUrlOrNull()
+            ?: throw IllegalArgumentException("Backend URL must be a valid http:// or https:// address")
+
+        val segments = parsed.pathSegments
+            .filter { it.isNotBlank() }
+            .toMutableList()
+
+        val removableTail = setOf(
+            "docs",
+            "redoc",
+            "openapi.json",
+            "health",
+            "translate"
+        )
+
+        while (segments.lastOrNull()?.lowercase() in removableTail) {
+            segments.removeAt(segments.lastIndex)
+        }
+
+        val encodedPath = if (segments.isEmpty()) {
+            "/"
+        } else {
+            "/" + segments.joinToString("/") + "/"
+        }
+
+        return parsed.newBuilder()
+            .query(null)
+            .fragment(null)
+            .encodedPath(encodedPath)
+            .build()
+            .toString()
     }
 
     fun setBackendUrl(raw: String): String {
         check(::appContext.isInitialized) { "ApiFactory.init(context) must be called first" }
-        val normalized = raw.trim().ensureSlash()
-        require(normalized.startsWith("http://") || normalized.startsWith("https://")) {
-            "Backend URL must start with http:// or https://"
-        }
+        val normalized = normalizeBackendUrl(raw)
 
-        // Validate URL immediately so a typo is reported before a sync attempt.
+        // Validate Retrofit compatibility immediately.
         Retrofit.Builder().baseUrl(normalized)
 
         appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -69,17 +102,17 @@ object ApiFactory {
             activeApi?.let { cached ->
                 if (activeUrl == url) return cached
             }
+
             val created = Retrofit.Builder()
                 .baseUrl(url)
                 .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
                 .create(JanSetuApi::class.java)
+
             activeUrl = url
             activeApi = created
             return created
         }
     }
-
-    private fun String.ensureSlash(): String = if (endsWith("/")) this else "$this/"
 }

@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,16 +47,13 @@ fun OfflineScreen(onBack: () -> Unit) {
             .padding(16.dp)
     ) {
         ScreenHeader("Offline translation library", onBack)
-        Text("Device evidence: Android API \${Build.VERSION.SDK_INT} • RAM \${totalRamMb} MB")
-        Text("Translations stored on this device: \${s.count}")
+        Text("Device evidence: Android API " + Build.VERSION.SDK_INT + " • RAM " + totalRamMb + " MB")
+        Text("Translations stored on this device: " + s.count)
 
         Spacer(Modifier.height(14.dp))
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
-                Text(
-                    "Built-in presentation demo",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Text("Built-in presentation demo", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "The tested classroom examples are bundled inside the APK, so this demo does not need Wi-Fi, mobile data, or a running backend."
                 )
@@ -73,9 +71,10 @@ fun OfflineScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(18.dp))
         Text("Backend for full translation library", style = MaterialTheme.typography.titleMedium)
         Text(
-            "10.0.2.2 works only in the Android emulator. On a real phone, use the LAN IP of the computer running FastAPI, for example http://192.168.1.5:8000/."
+            "Paste the API root URL. If you paste Swagger /docs, JanSetu will automatically remove /docs. Example: http://192.168.1.5:8000/"
         )
         Spacer(Modifier.height(8.dp))
+
         OutlinedTextField(
             value = s.backendUrl,
             onValueChange = vm::backendUrl,
@@ -83,13 +82,24 @@ fun OfflineScreen(onBack: () -> Unit) {
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
+
         Spacer(Modifier.height(8.dp))
-        Button(
-            onClick = vm::saveBackendUrl,
-            enabled = !s.busy && s.backendUrl.isNotBlank(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Save backend URL")
+        Row(Modifier.fillMaxWidth()) {
+            Button(
+                onClick = vm::saveBackendUrl,
+                enabled = !s.busy && s.backendUrl.isNotBlank(),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Save")
+            }
+            Spacer(Modifier.padding(4.dp))
+            Button(
+                onClick = vm::testBackend,
+                enabled = !s.busy && s.backendUrl.isNotBlank(),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Test backend")
+            }
         }
 
         Spacer(Modifier.height(10.dp))
@@ -110,12 +120,12 @@ fun OfflineScreen(onBack: () -> Unit) {
 
         if (s.sourceTerms > 0) {
             Spacer(Modifier.height(12.dp))
-            Text("Server lexicon: \${s.serverTranslated}/\${s.sourceTerms} translated")
+            Text("Server lexicon: " + s.serverTranslated + "/" + s.sourceTerms + " translated")
         }
 
         Spacer(Modifier.height(20.dp))
         Text(
-            "Offline behavior: bundled/cached phrases work directly. A sentence made only from individually synced words can use the labeled word-composition fallback. Completely unseen words still require the backend.",
+            "If Test backend succeeds but translation still fails, the app will now show the exact HTTP endpoint error instead of only HTTP 404.",
             style = MaterialTheme.typography.bodySmall
         )
     }

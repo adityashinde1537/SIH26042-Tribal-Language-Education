@@ -151,20 +151,36 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
         repository.saveBackendUrl(state.backendUrl).onSuccess { saved ->
             state = state.copy(
                 backendUrl = saved,
-                message = "Backend saved. Use your laptop's LAN IP on a physical phone."
+                message = "Backend URL saved as " + saved
             )
         }.onFailure {
             state = state.copy(message = it.message ?: "Invalid backend URL")
         }
     }
 
+    fun testBackend() = viewModelScope.launch {
+        state = state.copy(busy = true, message = "Testing backend…")
+        repository.testBackend().onSuccess { result ->
+            state = state.copy(
+                busy = false,
+                backendUrl = repository.backendUrl(),
+                message = result
+            )
+        }.onFailure {
+            state = state.copy(
+                busy = false,
+                message = it.message ?: "Backend test failed"
+            )
+        }
+    }
+
     fun syncStarter() = viewModelScope.launch {
         state = state.copy(busy = true, message = null)
-        repository.syncSeed().onSuccess {
+        repository.syncSeed().onSuccess { loaded ->
             state = state.copy(
                 busy = false,
                 count = repository.offlineCount(),
-                message = "Loaded $it demo translations. They work without a backend or internet."
+                message = "Loaded " + loaded + " demo translations. They work without a backend or internet."
             )
         }.onFailure {
             state = state.copy(busy = false, message = it.message ?: "Demo pack load failed")
@@ -172,13 +188,14 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
     }
 
     fun syncFullLexicon() = viewModelScope.launch {
-        state = state.copy(busy = true, message = "Connecting to \${state.backendUrl}…")
+        state = state.copy(busy = true, message = "Connecting to " + state.backendUrl + "…")
         repository.syncFullLexicon().onSuccess { result ->
             val localCount = repository.offlineCount()
             val status = if (result.completeOnServer) {
-                "Full translated lexicon synced: \${result.downloaded} entries."
+                "Full translated lexicon synced: " + result.downloaded + " entries."
             } else {
-                "Synced \${result.downloaded} entries. Server currently has \${result.serverTotal}/\${result.sourceTerms} translated."
+                "Synced " + result.downloaded + " entries. Server currently has " +
+                    result.serverTotal + "/" + result.sourceTerms + " translated."
             }
             state = state.copy(
                 busy = false,
@@ -190,7 +207,7 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
         }.onFailure {
             state = state.copy(
                 busy = false,
-                message = "Cannot reach \${state.backendUrl}. On a real phone, 10.0.2.2 is not your laptop. Set the laptop LAN URL below, or use the built-in demo pack offline."
+                message = it.message ?: "Full lexicon sync failed"
             )
         }
     }

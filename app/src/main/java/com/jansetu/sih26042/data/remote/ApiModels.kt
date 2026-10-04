@@ -13,8 +13,26 @@ data class TranslationResponse(
     val engine: String
 )
 
-data class SeedItem(val hindi: String, val santhali: String, @SerializedName("review_status") val reviewStatus: String)
-data class SeedPackResponse(val version: String, @SerializedName("language_pair") val languagePair: String, val items: List<SeedItem>)
+data class HealthResponse(
+    val status: String,
+    val model: String,
+    @SerializedName("model_loaded") val modelLoaded: Boolean,
+    val runtime: String,
+    @SerializedName("offline_seed_items") val offlineSeedItems: Int,
+    @SerializedName("source_lexicon_items") val sourceLexiconItems: Int,
+    @SerializedName("translated_lexicon_items") val translatedLexiconItems: Int
+)
+
+data class SeedItem(
+    val hindi: String,
+    val santhali: String,
+    @SerializedName("review_status") val reviewStatus: String
+)
+data class SeedPackResponse(
+    val version: String,
+    @SerializedName("language_pair") val languagePair: String,
+    val items: List<SeedItem>
+)
 
 data class LexiconEntry(val hindi: String, val santhali: String)
 data class LexiconMetaResponse(
