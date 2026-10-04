@@ -16,7 +16,10 @@ class TranslationService:
         namespace = f"{settings.model_name}@{settings.model_revision}|{settings.source_code}|{settings.target_code}"
         self.cache = TranslationCache(settings.cache_db, namespace)
         self.seed = SeedPack(settings.seed_pack)
-        self.source_lexicon = SourceLexicon(settings.hindi_lexicon_path)
+        self.source_lexicon = SourceLexicon(
+            settings.hindi_lexicon_path,
+            settings.lexicon_sources_dir,
+        )
         self._runtime: Any | None = None
         self._runtime_lock = threading.Lock()
         self._inference_lock = threading.Lock()

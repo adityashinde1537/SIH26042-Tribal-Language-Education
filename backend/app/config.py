@@ -28,6 +28,9 @@ class Settings:
     hindi_lexicon_path: Path = Path(
         os.getenv("HINDI_LEXICON_PATH", str(BASE_DIR / "data" / "hindi_open_lexicon.txt"))
     )
+    lexicon_sources_dir: Path = Path(
+        os.getenv("LEXICON_SOURCES_DIR", str(BASE_DIR / "data" / "lexicon_sources"))
+    )
     translation_mode: str = os.getenv("TRANSLATION_MODE", "model").lower()
     cors_origins: str = os.getenv("CORS_ORIGINS", "*")
 
