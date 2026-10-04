@@ -20,6 +20,8 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     runtime: str
     offline_seed_items: int
+    source_lexicon_items: int
+    translated_lexicon_items: int
 
 
 class SeedItem(BaseModel):
@@ -32,6 +34,25 @@ class SeedPackResponse(BaseModel):
     version: str
     language_pair: str
     items: list[SeedItem]
+
+
+class LexiconEntry(BaseModel):
+    hindi: str
+    santhali: str
+
+
+class LexiconMetaResponse(BaseModel):
+    source_terms: int
+    translated_entries: int
+    complete: bool
+    page_size_max: int = 1000
+
+
+class LexiconPageResponse(BaseModel):
+    offset: int
+    limit: int
+    total: int
+    items: list[LexiconEntry]
 
 
 class WorksheetRequest(BaseModel):

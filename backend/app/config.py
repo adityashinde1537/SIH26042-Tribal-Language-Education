@@ -25,6 +25,9 @@ class Settings:
     seed_pack: Path = Path(
         os.getenv("SEED_PACK_PATH", str(BASE_DIR / "data" / "seed_pack.json"))
     )
+    hindi_lexicon_path: Path = Path(
+        os.getenv("HINDI_LEXICON_PATH", str(BASE_DIR / "data" / "hindi_open_lexicon.txt"))
+    )
     translation_mode: str = os.getenv("TRANSLATION_MODE", "model").lower()
     cors_origins: str = os.getenv("CORS_ORIGINS", "*")
 

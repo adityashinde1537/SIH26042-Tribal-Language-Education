@@ -7,6 +7,7 @@ from huggingface_hub import snapshot_download
 
 from app.config import settings
 from app.services.cache import TranslationCache
+from app.services.lexicon import SourceLexicon
 from app.services.seed import SeedPack
 
 
@@ -15,9 +16,18 @@ class TranslationService:
         namespace = f"{settings.model_name}@{settings.model_revision}|{settings.source_code}|{settings.target_code}"
         self.cache = TranslationCache(settings.cache_db, namespace)
         self.seed = SeedPack(settings.seed_pack)
+        self.source_lexicon = SourceLexicon(settings.hindi_lexicon_path)
         self._runtime: Any | None = None
         self._runtime_lock = threading.Lock()
         self._inference_lock = threading.Lock()
+        self._prime_seed_cache()
+
+    def _prime_seed_cache(self) -> None:
+        for item in self.seed.data.get("items", []):
+            source = str(item.get("hindi", "")).strip()
+            target = str(item.get("santhali", "")).strip()
+            if source and target and self.has_meaningful_ol_chiki(target):
+                self.cache.put(source, target)
 
     @staticmethod
     def ol_chiki_ratio(text: str) -> float:
@@ -65,7 +75,7 @@ class TranslationService:
         return self._runtime is not None
 
     def translate(self, text: str) -> tuple[str, bool, str]:
-        clean = text.strip()
+        clean = " ".join(text.strip().split())
         cached = self.cache.get(clean)
         if cached and self.has_meaningful_ol_chiki(cached):
             return cached, True, "sqlite-cache"

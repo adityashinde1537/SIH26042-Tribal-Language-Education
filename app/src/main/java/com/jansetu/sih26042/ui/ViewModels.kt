@@ -104,7 +104,13 @@ class MaterialsViewModel(private val repository: JanSetuRepository) : ViewModel(
     }
 }
 
-data class OfflineUiState(val count: Int = 0, val busy: Boolean = false, val message: String? = null)
+data class OfflineUiState(
+    val count: Int = 0,
+    val busy: Boolean = false,
+    val message: String? = null,
+    val serverTranslated: Int = 0,
+    val sourceTerms: Int = 0
+)
 
 class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() {
     var state by mutableStateOf(OfflineUiState())
@@ -112,12 +118,37 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
 
     fun refresh() = viewModelScope.launch { state = state.copy(count = repository.offlineCount()) }
 
-    fun sync() = viewModelScope.launch {
+    fun syncStarter() = viewModelScope.launch {
         state = state.copy(busy = true, message = null)
         repository.syncSeed().onSuccess {
-            state = state.copy(busy = false, count = repository.offlineCount(), message = "Synced $it starter phrases for offline use.")
+            state = state.copy(
+                busy = false,
+                count = repository.offlineCount(),
+                message = "Synced $it starter phrases for offline use."
+            )
         }.onFailure {
-            state = state.copy(busy = false, message = it.message ?: "Sync failed")
+            state = state.copy(busy = false, message = it.message ?: "Starter sync failed")
+        }
+    }
+
+    fun syncFullLexicon() = viewModelScope.launch {
+        state = state.copy(busy = true, message = "Downloading translated lexicon…")
+        repository.syncFullLexicon().onSuccess { result ->
+            val localCount = repository.offlineCount()
+            val status = if (result.completeOnServer) {
+                "Full translated lexicon synced: ${result.downloaded} entries."
+            } else {
+                "Synced ${result.downloaded} translated entries. Server currently has ${result.serverTotal}/${result.sourceTerms}; run the backend lexicon builder to translate the remaining terms."
+            }
+            state = state.copy(
+                busy = false,
+                count = localCount,
+                serverTranslated = result.serverTotal,
+                sourceTerms = result.sourceTerms,
+                message = status
+            )
+        }.onFailure {
+            state = state.copy(busy = false, message = it.message ?: "Full lexicon sync failed")
         }
     }
 }

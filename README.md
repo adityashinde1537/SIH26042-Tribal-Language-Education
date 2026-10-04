@@ -10,25 +10,52 @@ Hindi → Santhali (Ol Chiki) prototype for mother-tongue-based primary classroo
 
 </div>
 
-## Problem
-
-Jharkhand's PALASH MTB-MLE programme shows the value of mother-tongue instruction, but scaling is constrained by the shortage of teachers who can teach in tribal languages such as Ho, Mundari and Santhali. SIH26042 asks for an AI-assisted software suite that helps Hindi-medium teachers translate FLN classroom content, conduct voice-assisted dialogue, generate bilingual learning material, and keep working in low-connectivity schools.
-
 ## What this repository implements
 
 - Hindi `hin_Deva` → Santhali `sat_Olck` translation through IndicTrans2 INT8 ONNX.
-- Ol Chiki output validation before a model result is accepted.
+- **3,730-entry Hindi source vocabulary library** bundled for full offline-library generation.
+- Full Hindi→Santhali lexicon generation and paginated Android synchronization.
+- Model fallback for words/sentences outside the bundled vocabulary.
+- Ol Chiki output validation before model output is stored.
 - Android 9+ app built with Kotlin + Jetpack Compose.
-- Text translation with Room/SQLite offline cache.
-- Initial content synchronization for offline classroom use.
-- Hindi voice input using Android speech recognition with offline preference.
-- Santhali text-to-speech request through the installed Android TTS engine.
-- End-to-end voice-cycle latency measurement against the SIH 3-second target.
-- Auto-generated bilingual worksheets and flashcards.
+- Room/SQLite offline translation library.
+- Hindi voice input with offline preference.
+- Santhali TTS request through the installed Android TTS engine.
+- Voice-cycle latency measurement against the SIH ≤3 second target.
+- Bilingual worksheets and flashcards.
 - FastAPI backend, SQLite cache, Docker support, tests and CI.
-- Documentation for validation, offline deployment and native-speaker review.
+- Architecture, validation, privacy, offline strategy and demo documentation.
 
-> **Important prototype boundary:** synced/cached classroom content works offline today. Arbitrary uncached offline neural translation is not falsely claimed; it needs a separately optimized on-device model pack that is listed in the roadmap.
+## Translation coverage
+
+JanSetu does **not** rely on a tiny fixed dictionary.
+
+```text
+Hindi input
+   │
+   ├── Room/SQLite offline hit ─────► return immediately
+   │
+   └── local miss
+          │
+          ▼
+       FastAPI
+          │
+          ├── translated lexicon/cache hit
+          │
+          └── miss ─────► IndicTrans2 INT8 ONNX
+                              │
+                              ▼
+                        Ol Chiki validation
+                              │
+                              ▼
+                        cache + return
+```
+
+The repository includes **3,730 unique Hindi terms/phrases** from a redistributable MIT-licensed source vocabulary. During **Sync full translation library**, missing entries are translated to Santhali and downloaded into Room for offline use.
+
+A literal file containing “all Hindi words” cannot exist because natural languages are open-vocabulary: inflections, compounds, names, numbers and new words create unlimited unseen forms. JanSetu therefore keeps **IndicTrans2 as the fallback** for any word or sentence outside the offline library.
+
+Source attribution is documented in [backend/data/HINDI_LEXICON_LICENSE.md](backend/data/HINDI_LEXICON_LICENSE.md).
 
 ## Architecture
 
@@ -39,53 +66,54 @@ Teacher
 Android 9+ app (Kotlin / Compose)
   ├── Text translation
   ├── Voice classroom mode
-  ├── Worksheet + flashcard UI
+  ├── Worksheets + flashcards
+  ├── Full lexicon sync
   ├── Android SpeechRecognizer / TTS
-  └── Room (SQLite) offline content cache
+  └── Room (SQLite) offline library
           │
-          │ online/local-LAN when available
+          │ initial sync / model fallback
           ▼
 FastAPI service
-  ├── SQLite translation cache
-  ├── Seed synchronization pack
+  ├── 3,730-term Hindi source lexicon
+  ├── SQLite translated lexicon/cache
   ├── Worksheet / flashcard generator
   └── IndicTrans2 INT8 ONNX
           Hindi: hin_Deva
           Santhali: sat_Olck
 ```
 
-See [Architecture](docs/ARCHITECTURE.md) and [SIH requirement matrix](docs/REQUIREMENTS_MATRIX.md).
+See [Architecture](docs/ARCHITECTURE.md), [Offline Strategy](docs/OFFLINE_STRATEGY.md), and [SIH Requirement Matrix](docs/REQUIREMENTS_MATRIX.md).
 
-## Repository layout
+## Build the full translated library
 
-```text
-.
-├── app/                    # Android app
-├── backend/                # FastAPI + NLP + content generation
-├── docs/                   # SIH problem, architecture, validation and demo docs
-├── .github/workflows/      # Android + backend CI
-├── build.gradle
-├── settings.gradle
-└── README.md
-```
-
-## Run backend
+Start the backend in model mode:
 
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+PYTHONPATH=. python scripts/build_lexicon.py
+```
+
+The build is resumable: already-cached entries are reused.
+
+Or start the API and let Android build/download the lexicon page-by-page using **Offline translation library → Sync full translation library**.
+
+## Run backend
+
+```bash
+cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-No-model-download demo/CI mode:
+CI/no-model mode:
 
 ```bash
 TRANSLATION_MODE=seed-only uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Test:
+Tests:
 
 ```bash
 cd backend
@@ -94,7 +122,11 @@ PYTHONPATH=. pytest -q
 
 ## Run Android
 
-The debug app uses `http://10.0.2.2:8000/` by default for an Android emulator.
+The emulator debug default is:
+
+```text
+http://10.0.2.2:8000/
+```
 
 For a physical tablet on the same LAN:
 
@@ -102,35 +134,27 @@ For a physical tablet on the same LAN:
 gradle :app:assembleDebug -PJANSETU_API_BASE_URL=http://192.168.1.10:8000/
 ```
 
-Install the generated debug APK on an Android 9+ device. For production-style deployments use HTTPS or a local packaged service/model strategy.
+## Offline behavior
 
-## Demo path
+After full lexicon synchronization, the downloaded Hindi→Santhali entries are stored on-device and work without internet. Any additional successful model translation is also cached automatically.
 
-1. Start the backend in `seed-only` or model mode.
-2. Open **Offline content** and sync the starter pack.
-3. Turn off connectivity and show the synced phrases still translating.
-4. Show **Text translation** with Hindi → Ol Chiki output.
-5. Show **Voice classroom mode** and its measured latency.
-6. Generate a bilingual worksheet and flashcards.
-7. Explain that model-generated educational content must be reviewed with native speakers before classroom rollout.
-
-A presenter-ready flow is in [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
-
-## Validation status
-
-The repository includes code paths for all major prototype modules, but not every SIH acceptance criterion is already proven on the target 2-GB tablet. The exact status and evidence needed are tracked in [docs/REQUIREMENTS_MATRIX.md](docs/REQUIREMENTS_MATRIX.md).
-
-## Roadmap
-
-- Native-speaker evaluation corpus for FLN vocabulary.
-- Bundled/quantized on-device translation model pack for arbitrary offline text.
-- Confirmed Santhali offline ASR/TTS model support independent of vendor TTS engines.
-- Expand language adapters to Ho and Mundari.
-- NIPUN Bharat tagged curriculum packs and teacher analytics.
+**Remaining production gap:** translating a never-before-seen word/sentence while the device has never synchronized and has no backend connection still requires a future quantized on-device model pack.
 
 ## Responsible use
 
-Santhali is a low-resource language. Machine output can be grammatically or contextually wrong. Treat AI output as teacher assistance, not authoritative curriculum, until reviewed by fluent/native language experts. Voice content is processed transiently by the Android speech service and this app does not intentionally persist raw audio.
+The full lexicon is **machine translated**, not automatically human-validated. Santhali is a low-resource language, so classroom content should be reviewed by fluent/native speakers before being treated as authoritative curriculum.
+
+## Demo path
+
+1. Start FastAPI in model mode.
+2. Open **Offline translation library**.
+3. Tap **Sync full translation library**.
+4. Disconnect connectivity and demonstrate offline word lookup.
+5. Enter an unseen sentence while online to show model fallback and automatic caching.
+6. Demonstrate voice classroom mode.
+7. Generate bilingual worksheets/flashcards.
+
+See [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 
 ---
 

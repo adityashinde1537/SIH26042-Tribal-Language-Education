@@ -23,6 +23,9 @@ class TranslationCache:
                 )
                 """
             )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_translations_source_text ON translations(source_text)"
+            )
             connection.commit()
 
     def _key(self, text: str) -> str:
@@ -44,3 +47,36 @@ class TranslationCache:
                 (self._key(text), text.strip(), translated_text.strip()),
             )
             connection.commit()
+
+    def count(self) -> int:
+        with sqlite3.connect(self.db_path, timeout=30) as connection:
+            row = connection.execute("SELECT COUNT(*) FROM translations").fetchone()
+        return int(row[0]) if row else 0
+
+    def count_present(self, source_texts: list[str]) -> int:
+        if not source_texts:
+            return 0
+        total = 0
+        with sqlite3.connect(self.db_path, timeout=30) as connection:
+            for start in range(0, len(source_texts), 500):
+                chunk = source_texts[start:start + 500]
+                placeholders = ",".join("?" for _ in chunk)
+                row = connection.execute(
+                    f"SELECT COUNT(DISTINCT source_text) FROM translations WHERE source_text IN ({placeholders})",
+                    chunk,
+                ).fetchone()
+                total += int(row[0]) if row else 0
+        return total
+
+    def page(self, offset: int, limit: int) -> list[tuple[str, str]]:
+        with sqlite3.connect(self.db_path, timeout=30) as connection:
+            rows = connection.execute(
+                """
+                SELECT source_text, translated_text
+                FROM translations
+                ORDER BY source_text COLLATE NOCASE
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+        return [(str(source), str(target)) for source, target in rows]

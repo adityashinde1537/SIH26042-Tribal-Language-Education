@@ -17,6 +17,13 @@ data class TranslationResult(
     val offline: Boolean
 )
 
+data class LexiconSyncResult(
+    val downloaded: Int,
+    val serverTotal: Int,
+    val sourceTerms: Int,
+    val completeOnServer: Boolean
+)
+
 class JanSetuRepository(
     private val api: JanSetuApi,
     private val dao: TranslationDao
@@ -42,7 +49,7 @@ class JanSetuRepository(
             dao.upsert(TranslationEntity(source, response.translatedText, response.engine))
             TranslationResult(response.translatedText, response.latencyMs, response.engine, false)
         } catch (network: IOException) {
-            throw IOException("This phrase is not in the offline cache. Connect once and sync/translate it first.", network)
+            throw IOException("This phrase is not in the offline library. Connect once to translate or sync it first.", network)
         }
     }
 
@@ -50,6 +57,37 @@ class JanSetuRepository(
         val pack = api.seedPack()
         dao.upsertAll(pack.items.map { TranslationEntity(normalize(it.hindi), it.santhali, "seed-pack") })
         pack.items.size
+    }
+
+    suspend fun syncFullLexicon(pageSize: Int = 20): Result<LexiconSyncResult> = runCatching {
+        val initial = api.lexiconMeta()
+        var offset = 0
+        var downloaded = 0
+
+        while (offset < initial.sourceTerms) {
+            val page = api.lexiconPage(offset = offset, limit = pageSize, generate = true)
+            if (page.items.isNotEmpty()) {
+                dao.upsertAll(
+                    page.items.map {
+                        TranslationEntity(
+                            sourceText = normalize(it.hindi),
+                            translatedText = it.santhali,
+                            engine = "full-lexicon"
+                        )
+                    }
+                )
+                downloaded += page.items.size
+            }
+            offset += page.limit
+        }
+
+        val finalMeta = api.lexiconMeta()
+        LexiconSyncResult(
+            downloaded = downloaded,
+            serverTotal = finalMeta.translatedEntries,
+            sourceTerms = finalMeta.sourceTerms,
+            completeOnServer = finalMeta.complete
+        )
     }
 
     suspend fun offlineCount(): Int = dao.count()
