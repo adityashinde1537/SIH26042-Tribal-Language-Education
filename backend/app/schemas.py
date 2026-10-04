@@ -45,7 +45,7 @@ class LexiconMetaResponse(BaseModel):
     source_terms: int
     translated_entries: int
     complete: bool
-    page_size_max: int = 1000
+    page_size_max: int = 100
 
 
 class LexiconPageResponse(BaseModel):
