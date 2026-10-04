@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/model-smoke.yml'
       - 'backend/scripts/model_smoke.py'
+      - 'backend/app/services/translation.py'
+      - 'backend/tests/test_translation_validation.py'
 
 jobs:
   translate:
