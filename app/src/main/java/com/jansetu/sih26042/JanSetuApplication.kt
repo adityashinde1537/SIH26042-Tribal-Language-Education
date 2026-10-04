@@ -11,7 +11,8 @@ class JanSetuApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        ApiFactory.init(this)
         val database = JanSetuDatabase.create(this)
-        repository = JanSetuRepository(ApiFactory.api, database.translationDao())
+        repository = JanSetuRepository(database.translationDao())
     }
 }

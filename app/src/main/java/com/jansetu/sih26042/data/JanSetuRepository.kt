@@ -2,9 +2,9 @@ package com.jansetu.sih26042.data
 
 import com.jansetu.sih26042.data.local.TranslationDao
 import com.jansetu.sih26042.data.local.TranslationEntity
+import com.jansetu.sih26042.data.remote.ApiFactory
 import com.jansetu.sih26042.data.remote.Flashcard
 import com.jansetu.sih26042.data.remote.FlashcardRequest
-import com.jansetu.sih26042.data.remote.JanSetuApi
 import com.jansetu.sih26042.data.remote.TranslationRequest
 import com.jansetu.sih26042.data.remote.WorksheetRequest
 import com.jansetu.sih26042.data.remote.WorksheetResponse
@@ -26,10 +26,24 @@ data class LexiconSyncResult(
 )
 
 class JanSetuRepository(
-    private val api: JanSetuApi,
     private val dao: TranslationDao
 ) {
     private fun normalize(text: String): String = text.trim().replace(Regex("\\s+"), " ")
+
+    private val builtInDemo = mapOf(
+        "नमस्कार विद्यार्थी" to "ᱦᱚᱞᱮᱹᱥ ᱥᱮᱪᱮᱫᱤᱭᱟᱹ ᱾",
+        "मेरा कॉलेज है...." to "ᱤᱧᱟᱹᱜ ᱠᱚᱞᱮᱡᱽ ᱢᱮᱱᱟᱜᱼᱟ ᱾",
+        "हमारा राज्य झारखंड है।" to "ᱤᱧᱟᱹᱜ ᱯᱚᱱᱚᱛ ᱫᱚ ᱦᱩᱭᱩᱜ ᱠᱟᱱᱟ ᱡᱷᱟᱨᱠᱷᱚᱸᱰ ᱾",
+        "सॉफ्टवेयर क्या है?" to "ᱥᱳᱯᱴᱳᱭᱟᱨ ᱫᱚ ᱪᱮᱫ?",
+        "नमस्ते, आप कैसे हैं?" to "ᱦᱚᱞᱮ, ᱟᱢ ᱪᱮᱫ ᱞᱮᱠᱟ?",
+        "आज मौसम अच्छा है।" to "ᱛᱮᱦᱮᱧ ᱦᱚᱭᱦᱩᱫᱤᱥ ᱱᱟᱯᱟᱭ ᱠᱟᱱᱟ ᱾"
+    )
+
+    fun backendUrl(): String = ApiFactory.backendUrl()
+
+    fun saveBackendUrl(url: String): Result<String> = runCatching {
+        ApiFactory.setBackendUrl(url)
+    }
 
     private suspend fun composeOffline(source: String): TranslationResult? {
         val rawTokens = source.split(Regex("\\s+")).filter { it.isNotBlank() }
@@ -75,26 +89,50 @@ class JanSetuRepository(
             )
         }
 
+        val builtIn = builtInDemo[source]
+        if (builtIn != null) {
+            dao.upsert(TranslationEntity(source, builtIn, "built-in-demo"))
+            return@runCatching TranslationResult(
+                translatedText = builtIn,
+                latencyMs = 0,
+                source = "built-in-demo",
+                offline = true
+            )
+        }
+
         try {
-            val response = api.translate(TranslationRequest(source))
+            val response = ApiFactory.api().translate(TranslationRequest(source))
             dao.upsert(TranslationEntity(source, response.translatedText, response.engine))
             TranslationResult(response.translatedText, response.latencyMs, response.engine, false)
         } catch (network: IOException) {
             composeOffline(source)
                 ?: throw IOException(
-                    "This sentence is not fully available offline. Sync its words once or connect to the JanSetu backend.",
+                    "No offline translation is available for this sentence. Use a built-in demo phrase, sync the library, or set a reachable backend URL.",
                     network
                 )
         }
     }
 
     suspend fun syncSeed(): Result<Int> = runCatching {
-        val pack = api.seedPack()
-        dao.upsertAll(pack.items.map { TranslationEntity(normalize(it.hindi), it.santhali, "seed-pack") })
-        pack.items.size
+        val builtIns = builtInDemo.map { (source, target) ->
+            TranslationEntity(normalize(source), target, "built-in-demo")
+        }
+        dao.upsertAll(builtIns)
+
+        val remoteItems = runCatching { ApiFactory.api().seedPack() }.getOrNull()?.items.orEmpty()
+        if (remoteItems.isNotEmpty()) {
+            dao.upsertAll(
+                remoteItems.map {
+                    TranslationEntity(normalize(it.hindi), it.santhali, "seed-pack")
+                }
+            )
+        }
+
+        (builtInDemo.keys + remoteItems.map { normalize(it.hindi) }).toSet().size
     }
 
     suspend fun syncFullLexicon(pageSize: Int = 20): Result<LexiconSyncResult> = runCatching {
+        val api = ApiFactory.api()
         val initial = api.lexiconMeta()
         var offset = 0
         var downloaded = 0
@@ -133,7 +171,7 @@ class JanSetuRepository(
         nipunDomain: String = "Vocabulary"
     ): Result<WorksheetResponse> = runCatching {
         try {
-            api.worksheet(WorksheetRequest(title, prompts, nipunDomain))
+            ApiFactory.api().worksheet(WorksheetRequest(title, prompts, nipunDomain))
         } catch (network: IOException) {
             val rows = prompts.mapIndexed { index, text ->
                 val local = translate(text).getOrThrow()
@@ -148,7 +186,7 @@ class JanSetuRepository(
         nipunDomain: String = "Vocabulary"
     ): Result<List<Flashcard>> = runCatching {
         try {
-            api.flashcards(FlashcardRequest(terms, nipunDomain)).cards
+            ApiFactory.api().flashcards(FlashcardRequest(terms, nipunDomain)).cards
         } catch (network: IOException) {
             terms.map { text ->
                 val local = translate(text).getOrThrow()

@@ -86,7 +86,7 @@ class VoiceViewModel(private val repository: JanSetuRepository) : ViewModel() {
 
 data class MaterialsUiState(
     val title: String = "FLN Practice Worksheet",
-    val content: String = "नमस्ते, आप कैसे हैं?\\nआज मौसम अच्छा है।",
+    val content: String = "नमस्ते, आप कैसे हैं?\nआज मौसम अच्छा है।",
     val domain: String = "Vocabulary",
     val busy: Boolean = false,
     val worksheet: WorksheetResponse? = null,
@@ -128,14 +128,35 @@ data class OfflineUiState(
     val busy: Boolean = false,
     val message: String? = null,
     val serverTranslated: Int = 0,
-    val sourceTerms: Int = 0
+    val sourceTerms: Int = 0,
+    val backendUrl: String = ""
 )
 
 class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() {
     var state by mutableStateOf(OfflineUiState())
         private set
 
-    fun refresh() = viewModelScope.launch { state = state.copy(count = repository.offlineCount()) }
+    fun refresh() = viewModelScope.launch {
+        state = state.copy(
+            count = repository.offlineCount(),
+            backendUrl = repository.backendUrl()
+        )
+    }
+
+    fun backendUrl(value: String) {
+        state = state.copy(backendUrl = value, message = null)
+    }
+
+    fun saveBackendUrl() {
+        repository.saveBackendUrl(state.backendUrl).onSuccess { saved ->
+            state = state.copy(
+                backendUrl = saved,
+                message = "Backend saved. Use your laptop's LAN IP on a physical phone."
+            )
+        }.onFailure {
+            state = state.copy(message = it.message ?: "Invalid backend URL")
+        }
+    }
 
     fun syncStarter() = viewModelScope.launch {
         state = state.copy(busy = true, message = null)
@@ -143,21 +164,21 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
             state = state.copy(
                 busy = false,
                 count = repository.offlineCount(),
-                message = "Synced $it starter phrases for offline use."
+                message = "Loaded $it demo translations. They work without a backend or internet."
             )
         }.onFailure {
-            state = state.copy(busy = false, message = it.message ?: "Starter sync failed")
+            state = state.copy(busy = false, message = it.message ?: "Demo pack load failed")
         }
     }
 
     fun syncFullLexicon() = viewModelScope.launch {
-        state = state.copy(busy = true, message = "Downloading translated lexicon…")
+        state = state.copy(busy = true, message = "Connecting to \${state.backendUrl}…")
         repository.syncFullLexicon().onSuccess { result ->
             val localCount = repository.offlineCount()
             val status = if (result.completeOnServer) {
-                "Full translated lexicon synced: ${result.downloaded} entries."
+                "Full translated lexicon synced: \${result.downloaded} entries."
             } else {
-                "Synced ${result.downloaded} translated entries. Server currently has ${result.serverTotal}/${result.sourceTerms}; run the backend lexicon builder to translate the remaining terms."
+                "Synced \${result.downloaded} entries. Server currently has \${result.serverTotal}/\${result.sourceTerms} translated."
             }
             state = state.copy(
                 busy = false,
@@ -167,7 +188,10 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
                 message = status
             )
         }.onFailure {
-            state = state.copy(busy = false, message = it.message ?: "Full lexicon sync failed")
+            state = state.copy(
+                busy = false,
+                message = "Cannot reach \${state.backendUrl}. On a real phone, 10.0.2.2 is not your laptop. Set the laptop LAN URL below, or use the built-in demo pack offline."
+            )
         }
     }
 }
