@@ -270,4 +270,52 @@ class LibraryViewModel(private val repository: JanSetuRepository) : ViewModel() 
             }
         }
     }
+
+    fun voiceSearch(recognizedHindi: String) {
+        val text = recognizedHindi.trim()
+        if (text.isBlank() || state.busy) return
+        viewModelScope.launch {
+            state = state.copy(
+                query = text,
+                busy = true,
+                message = "Recognized Hindi: " + text + " • searching library…"
+            )
+
+            val existing = repository.browseLibrary(text, limit = 100)
+            if (existing.isNotEmpty()) {
+                state = state.copy(
+                    busy = false,
+                    totalStored = repository.offlineCount(),
+                    items = existing,
+                    message = "Found in offline translation library."
+                )
+                return@launch
+            }
+
+            repository.translate(text).onSuccess {
+                val total = repository.offlineCount()
+                val saved = repository.browseLibrary(text, limit = 100)
+                state = state.copy(
+                    busy = false,
+                    totalStored = total,
+                    items = saved,
+                    message = if (it.offline) {
+                        "Found offline and loaded from " + it.source + "."
+                    } else {
+                        "Voice translation completed and saved for offline use."
+                    }
+                )
+            }.onFailure {
+                state = state.copy(
+                    busy = false,
+                    items = emptyList(),
+                    message = it.message ?: "Voice translation failed."
+                )
+            }
+        }
+    }
+
+    fun voiceFailure(message: String) {
+        state = state.copy(busy = false, message = message)
+    }
 }
