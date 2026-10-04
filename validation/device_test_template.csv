@@ -1,0 +1,4 @@
+device_name,android_api,total_ram_mb,scenario,run_1_ms,run_2_ms,run_3_ms,offline_success,santhali_tts_available,notes
+,28,,voice_hindi_to_santhali,,,,,,
+,28,,airplane_mode_synced_phrase,,,,,,
+,28,,full_lexicon_lookup,,,,,,

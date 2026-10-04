@@ -58,27 +58,33 @@ class LexiconPageResponse(BaseModel):
 class WorksheetRequest(BaseModel):
     title: str = Field(default="FLN Practice Worksheet", max_length=120)
     prompts: list[str] = Field(..., min_length=1, max_length=20)
+    nipun_domain: str = Field(default="Vocabulary", max_length=80)
 
 
 class WorksheetRow(BaseModel):
     number: int
     hindi: str
     santhali: str
+    nipun_domain: str
 
 
 class WorksheetResponse(BaseModel):
     title: str
+    nipun_domain: str
     rows: list[WorksheetRow]
     printable_html: str
 
 
 class FlashcardRequest(BaseModel):
     terms: list[str] = Field(..., min_length=1, max_length=30)
+    nipun_domain: str = Field(default="Vocabulary", max_length=80)
 
 
 class Flashcard(BaseModel):
     hindi: str
     santhali: str
+    visual: str
+    nipun_domain: str
 
 
 class FlashcardResponse(BaseModel):

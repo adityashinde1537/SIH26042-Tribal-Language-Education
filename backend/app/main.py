@@ -26,8 +26,8 @@ logger = logging.getLogger("jansetu-api")
 
 app = FastAPI(
     title="JanSetu SIH26042 API",
-    version="1.1.0",
-    description="Hindi → Santhali (Ol Chiki) translation, full lexicon sync and FLN material generation.",
+    version="1.2.0",
+    description="Hindi → Santhali (Ol Chiki) translation, lexicon sync and NIPUN-aligned FLN material generation.",
 )
 origins = ["*"] if settings.cors_origins == "*" else [x.strip() for x in settings.cors_origins.split(",") if x.strip()]
 app.add_middleware(
@@ -125,15 +125,26 @@ def lexicon_page(
 @app.post("/materials/worksheet", response_model=WorksheetResponse)
 def worksheet(request: WorksheetRequest) -> WorksheetResponse:
     try:
-        rows, printable_html = materials.worksheet(request.title, request.prompts)
+        rows, printable_html = materials.worksheet(
+            request.title,
+            request.prompts,
+            request.nipun_domain,
+        )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return WorksheetResponse(title=request.title, rows=rows, printable_html=printable_html)
+    return WorksheetResponse(
+        title=request.title,
+        nipun_domain=materials.normalize_domain(request.nipun_domain),
+        rows=rows,
+        printable_html=printable_html,
+    )
 
 
 @app.post("/materials/flashcards", response_model=FlashcardResponse)
 def flashcards(request: FlashcardRequest) -> FlashcardResponse:
     try:
-        return FlashcardResponse(cards=materials.flashcards(request.terms))
+        return FlashcardResponse(
+            cards=materials.flashcards(request.terms, request.nipun_domain)
+        )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

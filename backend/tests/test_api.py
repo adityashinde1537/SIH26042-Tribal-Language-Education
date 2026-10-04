@@ -11,7 +11,6 @@ def test_health():
     assert payload["status"] == "ok"
     assert payload["offline_seed_items"] >= 2
     assert payload["source_lexicon_items"] >= 3000
-    # A fresh CI database has not pre-generated the full lexicon yet.
     assert payload["translated_lexicon_items"] >= 0
     assert payload["translated_lexicon_items"] <= payload["source_lexicon_items"]
 
@@ -43,9 +42,35 @@ def test_lexicon_metadata_reports_full_source_library():
 def test_worksheet_generation_from_seed_items():
     response = client.post(
         "/materials/worksheet",
-        json={"title": "Demo", "prompts": ["नमस्ते, आप कैसे हैं?", "आज मौसम अच्छा है।"]},
+        json={
+            "title": "Demo",
+            "prompts": ["नमस्ते, आप कैसे हैं?", "आज मौसम अच्छा है।"],
+            "nipun_domain": "Reading Comprehension",
+        },
     )
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["rows"]) == 2
-    assert "<table>" in payload["printable_html"]
+    assert payload["nipun_domain"] == "Reading Comprehension"
+    assert payload["rows"][0]["nipun_domain"] == "Reading Comprehension"
+    assert "NIPUN Bharat FLN domain" in payload["printable_html"]
+
+
+def test_unknown_nipun_domain_falls_back_to_vocabulary():
+    response = client.post(
+        "/materials/worksheet",
+        json={"title": "Demo", "prompts": ["नमस्ते, आप कैसे हैं?"], "nipun_domain": "made-up"},
+    )
+    assert response.status_code == 200
+    assert response.json()["nipun_domain"] == "Vocabulary"
+
+
+def test_flashcards_include_offline_visual_cue():
+    response = client.post(
+        "/materials/flashcards",
+        json={"terms": ["नमस्ते, आप कैसे हैं?"], "nipun_domain": "Vocabulary"},
+    )
+    assert response.status_code == 200
+    card = response.json()["cards"][0]
+    assert card["visual"]
+    assert card["nipun_domain"] == "Vocabulary"
