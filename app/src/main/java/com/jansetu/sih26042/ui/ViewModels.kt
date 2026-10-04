@@ -242,9 +242,32 @@ class LibraryViewModel(private val repository: JanSetuRepository) : ViewModel() 
             items = results,
             message = when {
                 total == 0 -> "No translations are stored yet. Load the demo pack or sync the library first."
-                results.isEmpty() && state.query.isNotBlank() -> "No stored translation matches this Hindi search."
+                results.isEmpty() && state.query.isNotBlank() -> "Not stored yet. You can translate and save this Hindi term."
                 else -> null
             }
         )
+    }
+
+    fun translateAndSave() {
+        val text = state.query.trim()
+        if (text.isBlank() || state.busy) return
+        viewModelScope.launch {
+            state = state.copy(busy = true, message = "Translating and saving…")
+            repository.translate(text).onSuccess {
+                val total = repository.offlineCount()
+                val results = repository.browseLibrary(text, limit = 100)
+                state = state.copy(
+                    busy = false,
+                    totalStored = total,
+                    items = results,
+                    message = "Saved to offline translation library."
+                )
+            }.onFailure {
+                state = state.copy(
+                    busy = false,
+                    message = it.message ?: "Translation could not be saved."
+                )
+            }
+        }
     }
 }
