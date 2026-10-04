@@ -26,7 +26,7 @@ logger = logging.getLogger("jansetu-api")
 
 app = FastAPI(
     title="JanSetu SIH26042 API",
-    version="1.2.0",
+    version="1.2.1",
     description="Hindi → Santhali (Ol Chiki) translation, lexicon sync and NIPUN-aligned FLN material generation.",
 )
 origins = ["*"] if settings.cors_origins == "*" else [x.strip() for x in settings.cors_origins.split(",") if x.strip()]
@@ -53,6 +53,7 @@ def health() -> HealthResponse:
         status="ok",
         model=settings.model_name,
         model_loaded=translator.model_loaded,
+        translation_mode=settings.translation_mode,
         runtime="ONNX Runtime INT8 / CPU + SQLite cache",
         offline_seed_items=translator.seed.count,
         source_lexicon_items=translator.source_lexicon.count,

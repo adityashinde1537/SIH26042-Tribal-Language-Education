@@ -10,6 +10,7 @@ import com.jansetu.sih26042.data.remote.WorksheetRequest
 import com.jansetu.sih26042.data.remote.WorksheetResponse
 import com.jansetu.sih26042.data.remote.WorksheetRow
 import java.io.IOException
+import org.json.JSONObject
 import retrofit2.HttpException
 
 data class TranslationResult(
@@ -49,20 +50,35 @@ class JanSetuRepository(
     suspend fun testBackend(): Result<String> = runCatching {
         val health = ApiFactory.api().health()
         require(health.status == "ok") { "Backend health response was not OK" }
-        "Connected to " + ApiFactory.backendUrl() +
-            " • " + health.sourceLexiconItems + " source terms"
+        "Connected • mode=" + health.translationMode +
+            " • modelLoaded=" + health.modelLoaded +
+            " • sourceTerms=" + health.sourceLexiconItems +
+            " • " + ApiFactory.backendUrl()
+    }
+
+    private fun backendDetail(http: HttpException): String? {
+        return try {
+            val raw = http.response()?.errorBody()?.string().orEmpty()
+            if (raw.isBlank()) null else JSONObject(raw).optString("detail").takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun httpProblem(http: HttpException, endpoint: String): IOException {
         val current = ApiFactory.backendUrl()
-        return if (http.code() == 404) {
-            IOException(
+        val detail = backendDetail(http)
+        return when {
+            detail != null -> IOException(
+                "Backend error " + http.code() + " at " + endpoint + ": " + detail,
+                http
+            )
+            http.code() == 404 -> IOException(
                 "Backend is reachable, but " + endpoint + " returned HTTP 404. " +
                     "Save the API root URL, not the Swagger /docs URL. Current base: " + current,
                 http
             )
-        } else {
-            IOException(
+            else -> IOException(
                 "Backend returned HTTP " + http.code() + " for " + endpoint + ". Base: " + current,
                 http
             )

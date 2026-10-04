@@ -18,6 +18,7 @@ class HealthResponse(BaseModel):
     status: str
     model: str
     model_loaded: bool
+    translation_mode: str
     runtime: str
     offline_seed_items: int
     source_lexicon_items: int

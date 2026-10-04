@@ -17,6 +17,7 @@ data class HealthResponse(
     val status: String,
     val model: String,
     @SerializedName("model_loaded") val modelLoaded: Boolean,
+    @SerializedName("translation_mode") val translationMode: String,
     val runtime: String,
     @SerializedName("offline_seed_items") val offlineSeedItems: Int,
     @SerializedName("source_lexicon_items") val sourceLexiconItems: Int,
