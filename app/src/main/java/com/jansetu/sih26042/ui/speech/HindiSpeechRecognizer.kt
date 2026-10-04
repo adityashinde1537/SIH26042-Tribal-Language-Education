@@ -19,6 +19,15 @@ class HindiSpeechRecognizer(
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
 
+    private var usingOnDevice: Boolean = false
+    private var fallbackAttempted: Boolean = false
+    private var recognizer: SpeechRecognizer? = null
+
+    init {
+        recognizer = createPreferredRecognizer()
+        recognizer?.setRecognitionListener(this)
+    }
+
     val modeLabel: String
         get() = when {
             recognizer == null -> "Speech recognition unavailable"
@@ -29,13 +38,7 @@ class HindiSpeechRecognizer(
     val isAvailable: Boolean
         get() = recognizer != null
 
-    private var usingOnDevice: Boolean = false
-
-    private val recognizer: SpeechRecognizer? = createRecognizer().also {
-        it?.setRecognitionListener(this)
-    }
-
-    private fun createRecognizer(): SpeechRecognizer? {
+    private fun createPreferredRecognizer(): SpeechRecognizer? {
         if (onDeviceAvailable) {
             try {
                 usingOnDevice = true
@@ -44,19 +47,43 @@ class HindiSpeechRecognizer(
                 usingOnDevice = false
             }
         }
+        return createSystemRecognizer()
+    }
 
-        return if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            try {
-                SpeechRecognizer.createSpeechRecognizer(context)
-            } catch (_: Exception) {
-                null
-            }
-        } else {
+    private fun createSystemRecognizer(): SpeechRecognizer? {
+        usingOnDevice = false
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) return null
+        return try {
+            SpeechRecognizer.createSpeechRecognizer(context)
+        } catch (_: Exception) {
             null
         }
     }
 
+    private fun recognitionIntent(): Intent =
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            )
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
+
+            // Only force offline when we are actually using Android's on-device
+            // recognizer. The system fallback must be allowed to use network
+            // recognition if the Hindi offline model is not installed.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDevice)
+
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+        }
+
     fun startListening() {
+        fallbackAttempted = false
+        startCurrentRecognizer()
+    }
+
+    private fun startCurrentRecognizer() {
         val service = recognizer
         if (service == null) {
             onErrorMessage(
@@ -66,42 +93,62 @@ class HindiSpeechRecognizer(
             return
         }
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-        }
-
         try {
             service.cancel()
-            service.startListening(intent)
+            service.startListening(recognitionIntent())
             onListening()
         } catch (exc: Exception) {
-            onErrorMessage("Could not start Hindi speech recognition: " + (exc.message ?: "unknown error"))
+            onErrorMessage(
+                "Could not start Hindi speech recognition: " +
+                    (exc.message ?: "unknown error")
+            )
+        }
+    }
+
+    private fun switchToSystemAndRetry(): Boolean {
+        if (!usingOnDevice || fallbackAttempted) return false
+
+        fallbackAttempted = true
+        try {
+            recognizer?.cancel()
+            recognizer?.destroy()
+        } catch (_: Exception) {
+        }
+
+        recognizer = createSystemRecognizer()
+        recognizer?.setRecognitionListener(this)
+
+        return if (recognizer != null) {
+            startCurrentRecognizer()
+            true
+        } else {
+            false
         }
     }
 
     fun destroy() {
-        recognizer?.cancel()
-        recognizer?.destroy()
+        try {
+            recognizer?.cancel()
+            recognizer?.destroy()
+        } catch (_: Exception) {
+        }
+        recognizer = null
     }
 
     private fun errorMessage(code: Int): String = when (code) {
         SpeechRecognizer.ERROR_AUDIO -> "Audio recording error."
         SpeechRecognizer.ERROR_CLIENT -> "Speech recognizer client error. Try again."
         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required."
-        SpeechRecognizer.ERROR_NETWORK -> "Speech service network error. Try on-device mode or check connectivity."
+        SpeechRecognizer.ERROR_NETWORK -> "Speech recognition needs network access on this device."
         SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech service network timeout."
         SpeechRecognizer.ERROR_NO_MATCH -> "No Hindi speech was recognized. Please try again."
         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech recognizer is busy. Wait a moment and try again."
         SpeechRecognizer.ERROR_SERVER -> "Speech recognition service error."
         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech was detected."
+        SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ->
+            "Hindi (India) is not supported by the selected speech recognizer."
+        SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
+            "Hindi speech data is unavailable. Install Hindi speech data or use network recognition."
         else -> "Speech recognition failed (error " + code + ")."
     }
 
@@ -112,6 +159,13 @@ class HindiSpeechRecognizer(
     override fun onEndOfSpeech() = Unit
 
     override fun onError(error: Int) {
+        if (
+            usingOnDevice &&
+            (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
+                error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
+        ) {
+            if (switchToSystemAndRetry()) return
+        }
         onErrorMessage(errorMessage(error))
     }
 
