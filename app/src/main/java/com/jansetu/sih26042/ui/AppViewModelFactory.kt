@@ -16,6 +16,7 @@ class AppViewModelFactory(private val application: Application) : ViewModelProvi
         modelClass.isAssignableFrom(VoiceViewModel::class.java) -> VoiceViewModel(repository) as T
         modelClass.isAssignableFrom(MaterialsViewModel::class.java) -> MaterialsViewModel(repository) as T
         modelClass.isAssignableFrom(OfflineViewModel::class.java) -> OfflineViewModel(repository) as T
-        else -> error("Unknown ViewModel: ${modelClass.name}")
+        modelClass.isAssignableFrom(LibraryViewModel::class.java) -> LibraryViewModel(repository) as T
+        else -> error("Unknown ViewModel: " + modelClass.name)
     }
 }

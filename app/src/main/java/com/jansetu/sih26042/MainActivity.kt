@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.jansetu.sih26042.ui.screens.HomeScreen
+import com.jansetu.sih26042.ui.screens.LibraryScreen
 import com.jansetu.sih26042.ui.screens.MaterialsScreen
 import com.jansetu.sih26042.ui.screens.OfflineScreen
 import com.jansetu.sih26042.ui.screens.TextTranslationScreen
@@ -22,6 +23,7 @@ private object Routes {
     const val TEXT = "text"
     const val VOICE = "voice"
     const val MATERIALS = "materials"
+    const val LIBRARY = "library"
     const val OFFLINE = "offline"
 }
 
@@ -38,12 +40,14 @@ class MainActivity : ComponentActivity() {
                                 onText = { nav.navigate(Routes.TEXT) },
                                 onVoice = { nav.navigate(Routes.VOICE) },
                                 onMaterials = { nav.navigate(Routes.MATERIALS) },
+                                onLibrary = { nav.navigate(Routes.LIBRARY) },
                                 onOffline = { nav.navigate(Routes.OFFLINE) }
                             )
                         }
                         composable(Routes.TEXT) { TextTranslationScreen(onBack = { nav.popBackStack() }) }
                         composable(Routes.VOICE) { VoiceTranslationScreen(onBack = { nav.popBackStack() }) }
                         composable(Routes.MATERIALS) { MaterialsScreen(onBack = { nav.popBackStack() }) }
+                        composable(Routes.LIBRARY) { LibraryScreen(onBack = { nav.popBackStack() }) }
                         composable(Routes.OFFLINE) { OfflineScreen(onBack = { nav.popBackStack() }) }
                     }
                 }

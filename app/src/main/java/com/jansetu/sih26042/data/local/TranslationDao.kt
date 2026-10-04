@@ -13,6 +13,16 @@ interface TranslationDao {
     @Query("SELECT * FROM translations WHERE sourceText IN (:sources)")
     suspend fun findMany(sources: List<String>): List<TranslationEntity>
 
+    @Query(
+        """
+        SELECT * FROM translations
+        WHERE (:query = '' OR sourceText LIKE '%' || :query || '%')
+        ORDER BY sourceText COLLATE NOCASE
+        LIMIT :limit
+        """
+    )
+    suspend fun browse(query: String, limit: Int = 100): List<TranslationEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: TranslationEntity)
 

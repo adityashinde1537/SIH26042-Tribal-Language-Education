@@ -27,6 +27,12 @@ data class LexiconSyncResult(
     val completeOnServer: Boolean
 )
 
+data class LibraryItem(
+    val hindi: String,
+    val santhali: String,
+    val engine: String
+)
+
 class JanSetuRepository(
     private val dao: TranslationDao
 ) {
@@ -222,6 +228,17 @@ class JanSetuRepository(
     }
 
     suspend fun offlineCount(): Int = dao.count()
+
+    suspend fun browseLibrary(query: String, limit: Int = 100): List<LibraryItem> {
+        val clean = normalize(query)
+        return dao.browse(clean, limit).map {
+            LibraryItem(
+                hindi = it.sourceText,
+                santhali = it.translatedText,
+                engine = it.engine
+            )
+        }
+    }
 
     suspend fun worksheet(
         title: String,

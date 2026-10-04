@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Button
@@ -36,6 +37,7 @@ fun HomeScreen(
     onText: () -> Unit,
     onVoice: () -> Unit,
     onMaterials: () -> Unit,
+    onLibrary: () -> Unit,
     onOffline: () -> Unit
 ) {
     Column(
@@ -96,6 +98,13 @@ fun HomeScreen(
             onClick = onVoice
         )
         FeatureCard(
+            icon = Icons.Filled.LibraryBooks,
+            title = "Browse translation library",
+            subtitle = "Search the Hindi → Santali translations actually stored on this device.",
+            action = "Browse library",
+            onClick = onLibrary
+        )
+        FeatureCard(
             icon = Icons.Filled.Description,
             title = "NIPUN learning materials",
             subtitle = "Generate bilingual worksheets and visual flashcards with FLN-domain tags.",
@@ -123,8 +132,8 @@ fun HomeScreen(
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text("1. Open Text translation and tap a demo phrase.")
-                Text("2. Show clean Ol Chiki output and engine/latency.")
-                Text("3. Open Offline library and show device API/RAM.")
+                Text("2. Open Browse library and search a stored Hindi word.")
+                Text("3. Show Offline library device API/RAM and sync status.")
                 Text("4. Generate one NIPUN worksheet or flashcard.")
             }
         }

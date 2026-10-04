@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jansetu.sih26042.data.JanSetuRepository
+import com.jansetu.sih26042.data.LibraryItem
 import com.jansetu.sih26042.data.remote.Flashcard
 import com.jansetu.sih26042.data.remote.WorksheetResponse
 import kotlinx.coroutines.launch
@@ -210,5 +211,40 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
                 message = it.message ?: "Full lexicon sync failed"
             )
         }
+    }
+}
+
+
+data class LibraryUiState(
+    val query: String = "",
+    val items: List<LibraryItem> = emptyList(),
+    val totalStored: Int = 0,
+    val busy: Boolean = false,
+    val message: String? = null
+)
+
+class LibraryViewModel(private val repository: JanSetuRepository) : ViewModel() {
+    var state by mutableStateOf(LibraryUiState())
+        private set
+
+    fun query(value: String) {
+        state = state.copy(query = value, message = null)
+        refresh()
+    }
+
+    fun refresh() = viewModelScope.launch {
+        state = state.copy(busy = true, message = null)
+        val total = repository.offlineCount()
+        val results = repository.browseLibrary(state.query, limit = 100)
+        state = state.copy(
+            busy = false,
+            totalStored = total,
+            items = results,
+            message = when {
+                total == 0 -> "No translations are stored yet. Load the demo pack or sync the library first."
+                results.isEmpty() && state.query.isNotBlank() -> "No stored translation matches this Hindi search."
+                else -> null
+            }
+        )
     }
 }
