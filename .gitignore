@@ -1,0 +1,36 @@
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
+*.apk
+*.aab
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+backend/data/runtime/
+**/*.db
+**/*.db-*
+
+# Model/cache artifacts
+.huggingface/
+hf-cache/
+*.onnx
+*.bin
+*.safetensors
+
+# Secrets / signing
+*.jks
+*.keystore
+google-services.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp

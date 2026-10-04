@@ -1,0 +1,64 @@
+from pydantic import BaseModel, Field
+
+
+class TranslationRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=1500)
+
+
+class TranslationResponse(BaseModel):
+    translated_text: str
+    source_language: str = "Hindi"
+    target_language: str = "Santhali (Ol Chiki)"
+    latency_ms: int
+    cached: bool
+    engine: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    model: str
+    model_loaded: bool
+    runtime: str
+    offline_seed_items: int
+
+
+class SeedItem(BaseModel):
+    hindi: str
+    santhali: str
+    review_status: str
+
+
+class SeedPackResponse(BaseModel):
+    version: str
+    language_pair: str
+    items: list[SeedItem]
+
+
+class WorksheetRequest(BaseModel):
+    title: str = Field(default="FLN Practice Worksheet", max_length=120)
+    prompts: list[str] = Field(..., min_length=1, max_length=20)
+
+
+class WorksheetRow(BaseModel):
+    number: int
+    hindi: str
+    santhali: str
+
+
+class WorksheetResponse(BaseModel):
+    title: str
+    rows: list[WorksheetRow]
+    printable_html: str
+
+
+class FlashcardRequest(BaseModel):
+    terms: list[str] = Field(..., min_length=1, max_length=30)
+
+
+class Flashcard(BaseModel):
+    hindi: str
+    santhali: str
+
+
+class FlashcardResponse(BaseModel):
+    cards: list[Flashcard]

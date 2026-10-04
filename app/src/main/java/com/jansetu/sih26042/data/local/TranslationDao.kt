@@ -1,0 +1,21 @@
+package com.jansetu.sih26042.data.local
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+
+@Dao
+interface TranslationDao {
+    @Query("SELECT * FROM translations WHERE sourceText = :source LIMIT 1")
+    suspend fun find(source: String): TranslationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(item: TranslationEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(items: List<TranslationEntity>)
+
+    @Query("SELECT COUNT(*) FROM translations")
+    suspend fun count(): Int
+}

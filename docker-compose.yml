@@ -1,0 +1,14 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      TRANSLATION_MODE: model
+    volumes:
+      - hf-cache:/model-cache
+      - backend-data:/app/data/runtime
+
+volumes:
+  hf-cache:
+  backend-data:

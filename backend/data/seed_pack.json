@@ -1,0 +1,16 @@
+{
+  "version": "2026.10-prototype",
+  "language_pair": "hin_Deva→sat_Olck",
+  "items": [
+    {
+      "hindi": "नमस्ते, आप कैसे हैं?",
+      "santhali": "ᱦᱚᱞᱮ, ᱟᱢ ᱪᱮᱫ ᱞᱮᱠᱟ?",
+      "review_status": "machine-smoke-test; native-speaker review required"
+    },
+    {
+      "hindi": "आज मौसम अच्छा है।",
+      "santhali": "ᱛᱮᱦᱮᱧ ᱦᱚᱭᱦᱩᱫᱤᱥ ᱱᱟᱯᱟᱭ ᱠᱟᱱᱟ ᱾",
+      "review_status": "machine-smoke-test; native-speaker review required"
+    }
+  ]
+}
