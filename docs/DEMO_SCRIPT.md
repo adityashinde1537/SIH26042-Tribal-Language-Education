@@ -4,30 +4,52 @@
 
 Explain that many Hindi-medium primary teachers in tribal areas may not know the child's home language. JanSetu acts as a classroom language bridge, starting with Santhali.
 
-## 2. Text translation
+## 2. Device evidence
 
-Enter `नमस्ते, आप कैसे हैं?` and show Ol Chiki output. Point out the engine/cache and latency label.
+Open **Offline translation library** and show the Android API level and total RAM reported by the app. This gives visible evidence for the Android 9+ / low-cost-device target.
 
-## 3. Offline proof
+## 3. Text translation
 
-Open **Offline content**, sync starter content, then disable connectivity. Return to text translation and demonstrate a synchronized phrase from Room/SQLite.
+Test the tracked examples:
 
-## 4. Voice classroom mode
+- \`नमस्कार विद्यार्थी\`
+- \`मेरा कॉलेज है....\`
+- \`हमारा राज्य झारखंड है।\`
+- \`सॉफ्टवेयर क्या है?\`
 
-Tap **Speak Hindi**, say a short Hindi phrase, show the recognized Hindi and Santhali result. Point at the measured cycle time and whether it is inside the three-second target. Use **Speak Santhali output** only if the tablet's TTS engine reports usable Santhali support.
+Show that output is clean Ol Chiki and point out cache/engine information.
 
-## 5. Pedagogy
+## 4. Offline proof
 
-Open **Worksheets & flashcards**, enter one prompt per line and generate bilingual material. Share the worksheet output.
+Sync the translation library. Disable connectivity and demonstrate:
 
-## 6. Technical close
+1. an exact synchronized phrase;
+2. an unseen sentence made only from words already in the local library, showing the labeled \`offline-word-composition\` fallback.
 
-Show the repository architecture: Android + Room, FastAPI, SQLite, IndicTrans2 INT8 ONNX. Explain the explicit roadmap from synchronized offline content to a fully on-device arbitrary translation model and expansion to Ho/Mundari.
+Be explicit that a truly unseen word still needs the backend until an on-device neural model pack is available.
 
-## 7. Evidence to capture in final video
+## 5. Voice classroom mode
 
-- Android version and RAM of test device.
+Tap **Speak Hindi**, say a short Hindi phrase, show recognized Hindi and the Santhali result. Record at least three measured cycle times and keep all results. Use **Speak Santhali output** only if the installed TTS engine reports usable Santali support.
+
+## 6. NIPUN-aligned pedagogy
+
+Open **Bilingual learning materials**, select a NIPUN FLN domain such as Vocabulary or Reading Comprehension, generate a worksheet, then generate visual flashcards. Show the domain label and the offline visual cues.
+
+## 7. Validation evidence
+
+Show \`validation/native_review_template.csv\` and \`validation/device_test_template.csv\`. If a fluent/native Santali reviewer has completed the language sheet, include one reviewed example in the final video.
+
+## 8. Technical close
+
+Show the architecture: Android + Room, FastAPI, SQLite, IndicTrans2 INT8 ONNX, lexicon import pipeline, strict Ol Chiki validation, CI, and APK artifact.
+
+## Final video evidence checklist
+
+- Android API level and RAM.
 - Airplane-mode success after sync.
 - Three voice-cycle latency measurements.
-- One worksheet generation sequence.
-- One native-speaker feedback example if available.
+- One NIPUN-tagged worksheet.
+- Visual flashcards.
+- One native-speaker feedback example, if completed.
+- GitHub Actions passing and downloadable APK artifact.
