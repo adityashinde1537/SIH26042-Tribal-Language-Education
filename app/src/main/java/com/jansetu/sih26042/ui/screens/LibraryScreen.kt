@@ -2,10 +2,7 @@ package com.jansetu.sih26042.ui.screens
 
 import android.Manifest
 import android.app.Application
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +34,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jansetu.sih26042.ui.AppViewModelFactory
 import com.jansetu.sih26042.ui.LibraryViewModel
+import com.jansetu.sih26042.ui.speech.HindiSpeechRecognizer
 import java.util.Locale
 
 @Composable
@@ -51,61 +49,22 @@ fun LibraryScreen(onBack: () -> Unit) {
     val tts = remember {
         TextToSpeech(context) { status ->
             ttsReady.value = status == TextToSpeech.SUCCESS
-            if (status != TextToSpeech.SUCCESS) {
-                ttsMessage.value = "Android text-to-speech could not start."
-            }
         }
+    }
+
+    val speech = remember(context) {
+        HindiSpeechRecognizer(
+            context = context,
+            onListening = vm::voiceListening,
+            onResult = vm::voiceSearch,
+            onErrorMessage = vm::voiceFailure
+        )
     }
 
     DisposableEffect(Unit) {
-        onDispose { tts.shutdown() }
-    }
-
-    fun speakSantali(text: String) {
-        if (!ttsReady.value) {
-            ttsMessage.value = "Santali speech is not ready on this device."
-            return
-        }
-        val languageResult = tts.setLanguage(Locale("sat", "IN"))
-        if (
-            languageResult == TextToSpeech.LANG_MISSING_DATA ||
-            languageResult == TextToSpeech.LANG_NOT_SUPPORTED
-        ) {
-            ttsMessage.value = "Santali TTS voice data is not installed on this device."
-            return
-        }
-        ttsMessage.value = null
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jansetu-library-santali")
-    }
-
-    val recognizer = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val recognized = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-        if (recognized.isNullOrBlank()) {
-            vm.voiceFailure("No Hindi speech was recognized. Try again.")
-        } else {
-            vm.voiceSearch(recognized)
-        }
-    }
-
-    fun launchHindiRecognition() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak a Hindi word or phrase")
-        }
-        try {
-            recognizer.launch(intent)
-        } catch (_: ActivityNotFoundException) {
-            vm.voiceFailure("Hindi speech recognition is not available on this device.")
+        onDispose {
+            speech.destroy()
+            tts.shutdown()
         }
     }
 
@@ -113,10 +72,40 @@ fun LibraryScreen(onBack: () -> Unit) {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            launchHindiRecognition()
+            speech.startListening()
         } else {
             vm.voiceFailure("Microphone permission is required for voice library mode.")
         }
+    }
+
+    fun startHindiSpeech() {
+        if (
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            speech.startListening()
+        } else {
+            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    fun speakSantali(text: String) {
+        if (!ttsReady.value) {
+            ttsMessage.value = "Santali speech is not ready on this device."
+            return
+        }
+        val result = tts.setLanguage(Locale("sat", "IN"))
+        if (
+            result == TextToSpeech.LANG_MISSING_DATA ||
+            result == TextToSpeech.LANG_NOT_SUPPORTED
+        ) {
+            ttsMessage.value = "Santali TTS voice data is not installed on this device."
+            return
+        }
+        ttsMessage.value = null
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jansetu-library-output")
     }
 
     LaunchedEffect(Unit) { vm.refresh() }
@@ -130,11 +119,11 @@ fun LibraryScreen(onBack: () -> Unit) {
             fontWeight = FontWeight.Bold
         )
         Text(
-            s.totalStored.toString() + " translated entries stored offline on this device",
+            s.totalStored.toString() + " translated entries stored offline",
             style = MaterialTheme.typography.bodyMedium
         )
         Text(
-            "Type or speak Hindi. JanSetu searches the local library first; if missing, it translates through the backend and saves the result offline.",
+            "Speech input: " + speech.modeLabel,
             style = MaterialTheme.typography.bodySmall
         )
 
@@ -151,19 +140,8 @@ fun LibraryScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth()) {
             Button(
-                onClick = {
-                    if (
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        launchHindiRecognition()
-                    } else {
-                        microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                },
-                enabled = !s.busy,
+                onClick = ::startHindiSpeech,
+                enabled = !s.busy && speech.isAvailable,
                 modifier = Modifier.weight(1f)
             ) {
                 Text("🎤 Speak Hindi")

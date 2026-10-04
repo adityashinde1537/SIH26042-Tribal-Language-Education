@@ -315,6 +315,10 @@ class LibraryViewModel(private val repository: JanSetuRepository) : ViewModel() 
         }
     }
 
+    fun voiceListening() {
+        state = state.copy(busy = true, message = "Listening for Hindi speech…")
+    }
+
     fun voiceFailure(message: String) {
         state = state.copy(busy = false, message = message)
     }
