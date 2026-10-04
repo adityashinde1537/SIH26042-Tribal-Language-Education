@@ -32,7 +32,13 @@ class TranslationViewModel(private val repository: JanSetuRepository) : ViewMode
         viewModelScope.launch {
             state = state.copy(busy = true, message = null)
             repository.translate(text).onSuccess {
-                state = state.copy(busy = false, output = it.translatedText, latencyMs = it.latencyMs, source = it.source, offline = it.offline)
+                state = state.copy(
+                    busy = false,
+                    output = it.translatedText,
+                    latencyMs = it.latencyMs,
+                    source = it.source,
+                    offline = it.offline
+                )
             }.onFailure {
                 state = state.copy(busy = false, message = it.message ?: "Translation failed")
             }
@@ -63,7 +69,12 @@ class VoiceViewModel(private val repository: JanSetuRepository) : ViewModel() {
         viewModelScope.launch {
             repository.translate(text).onSuccess {
                 val elapsed = System.currentTimeMillis() - cycleStartedAt
-                state = state.copy(busy = false, santhali = it.translatedText, roundTripMs = elapsed, message = null)
+                state = state.copy(
+                    busy = false,
+                    santhali = it.translatedText,
+                    roundTripMs = elapsed,
+                    message = null
+                )
             }.onFailure {
                 state = state.copy(busy = false, message = it.message ?: "Voice translation failed")
             }
@@ -75,7 +86,8 @@ class VoiceViewModel(private val repository: JanSetuRepository) : ViewModel() {
 
 data class MaterialsUiState(
     val title: String = "FLN Practice Worksheet",
-    val content: String = "नमस्ते, आप कैसे हैं?\nआज मौसम अच्छा है।",
+    val content: String = "नमस्ते, आप कैसे हैं?\\nआज मौसम अच्छा है।",
+    val domain: String = "Vocabulary",
     val busy: Boolean = false,
     val worksheet: WorksheetResponse? = null,
     val cards: List<Flashcard> = emptyList(),
@@ -87,20 +99,27 @@ class MaterialsViewModel(private val repository: JanSetuRepository) : ViewModel(
         private set
     fun title(value: String) { state = state.copy(title = value) }
     fun content(value: String) { state = state.copy(content = value) }
+    fun domain(value: String) { state = state.copy(domain = value) }
     private fun lines() = state.content.lines().map { it.trim() }.filter { it.isNotBlank() }
 
     fun worksheet() = viewModelScope.launch {
         val prompts = lines(); if (prompts.isEmpty()) return@launch
         state = state.copy(busy = true, message = null, cards = emptyList())
-        repository.worksheet(state.title, prompts).onSuccess { state = state.copy(busy = false, worksheet = it) }
-            .onFailure { state = state.copy(busy = false, message = it.message) }
+        repository.worksheet(state.title, prompts, state.domain).onSuccess {
+            state = state.copy(busy = false, worksheet = it)
+        }.onFailure {
+            state = state.copy(busy = false, message = it.message)
+        }
     }
 
     fun flashcards() = viewModelScope.launch {
         val terms = lines(); if (terms.isEmpty()) return@launch
         state = state.copy(busy = true, message = null, worksheet = null)
-        repository.flashcards(terms).onSuccess { state = state.copy(busy = false, cards = it) }
-            .onFailure { state = state.copy(busy = false, message = it.message) }
+        repository.flashcards(terms, state.domain).onSuccess {
+            state = state.copy(busy = false, cards = it)
+        }.onFailure {
+            state = state.copy(busy = false, message = it.message)
+        }
     }
 }
 

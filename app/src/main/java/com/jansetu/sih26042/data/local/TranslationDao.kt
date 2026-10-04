@@ -10,6 +10,9 @@ interface TranslationDao {
     @Query("SELECT * FROM translations WHERE sourceText = :source LIMIT 1")
     suspend fun find(source: String): TranslationEntity?
 
+    @Query("SELECT * FROM translations WHERE sourceText IN (:sources)")
+    suspend fun findMany(sources: List<String>): List<TranslationEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: TranslationEntity)
 

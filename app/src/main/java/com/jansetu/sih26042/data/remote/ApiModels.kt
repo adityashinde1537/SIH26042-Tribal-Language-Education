@@ -30,10 +30,32 @@ data class LexiconPageResponse(
     val items: List<LexiconEntry>
 )
 
-data class WorksheetRequest(val title: String, val prompts: List<String>)
-data class WorksheetRow(val number: Int, val hindi: String, val santhali: String)
-data class WorksheetResponse(val title: String, val rows: List<WorksheetRow>, @SerializedName("printable_html") val printableHtml: String)
+data class WorksheetRequest(
+    val title: String,
+    val prompts: List<String>,
+    @SerializedName("nipun_domain") val nipunDomain: String = "Vocabulary"
+)
+data class WorksheetRow(
+    val number: Int,
+    val hindi: String,
+    val santhali: String,
+    @SerializedName("nipun_domain") val nipunDomain: String
+)
+data class WorksheetResponse(
+    val title: String,
+    @SerializedName("nipun_domain") val nipunDomain: String,
+    val rows: List<WorksheetRow>,
+    @SerializedName("printable_html") val printableHtml: String
+)
 
-data class FlashcardRequest(val terms: List<String>)
-data class Flashcard(val hindi: String, val santhali: String)
+data class FlashcardRequest(
+    val terms: List<String>,
+    @SerializedName("nipun_domain") val nipunDomain: String = "Vocabulary"
+)
+data class Flashcard(
+    val hindi: String,
+    val santhali: String,
+    val visual: String,
+    @SerializedName("nipun_domain") val nipunDomain: String
+)
 data class FlashcardResponse(val cards: List<Flashcard>)

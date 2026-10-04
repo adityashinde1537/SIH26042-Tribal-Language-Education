@@ -8,6 +8,7 @@ import com.jansetu.sih26042.data.remote.JanSetuApi
 import com.jansetu.sih26042.data.remote.TranslationRequest
 import com.jansetu.sih26042.data.remote.WorksheetRequest
 import com.jansetu.sih26042.data.remote.WorksheetResponse
+import com.jansetu.sih26042.data.remote.WorksheetRow
 import java.io.IOException
 
 data class TranslationResult(
@@ -30,6 +31,36 @@ class JanSetuRepository(
 ) {
     private fun normalize(text: String): String = text.trim().replace(Regex("\\s+"), " ")
 
+    private suspend fun composeOffline(source: String): TranslationResult? {
+        val rawTokens = source.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (rawTokens.size < 2) return null
+
+        val punctuation = charArrayOf('।', '.', '?', '!', ',', ';', ':')
+        val cleanTokens = rawTokens.map { token -> token.trim(*punctuation) }
+            .filter { it.isNotBlank() }
+        if (cleanTokens.size != rawTokens.size) return null
+
+        val entries = dao.findMany(cleanTokens).associateBy { normalize(it.sourceText) }
+        if (cleanTokens.any { entries[it] == null }) return null
+
+        val translated = cleanTokens.joinToString(" ") { token ->
+            entries.getValue(token).translatedText
+                .trim()
+                .trimEnd('᱾', '.', '?', '!', ',', ';', ':')
+        } + when {
+            source.trimEnd().endsWith("?") -> "?"
+            source.trimEnd().endsWith("!") -> "!"
+            else -> " ᱾"
+        }
+
+        return TranslationResult(
+            translatedText = translated,
+            latencyMs = 0,
+            source = "offline-word-composition",
+            offline = true
+        )
+    }
+
     suspend fun translate(text: String): Result<TranslationResult> = runCatching {
         val source = normalize(text)
         require(source.isNotBlank()) { "Hindi text cannot be blank" }
@@ -49,7 +80,11 @@ class JanSetuRepository(
             dao.upsert(TranslationEntity(source, response.translatedText, response.engine))
             TranslationResult(response.translatedText, response.latencyMs, response.engine, false)
         } catch (network: IOException) {
-            throw IOException("This phrase is not in the offline library. Connect once to translate or sync it first.", network)
+            composeOffline(source)
+                ?: throw IOException(
+                    "This sentence is not fully available offline. Sync its words once or connect to the JanSetu backend.",
+                    network
+                )
         }
     }
 
@@ -92,23 +127,33 @@ class JanSetuRepository(
 
     suspend fun offlineCount(): Int = dao.count()
 
-    suspend fun worksheet(title: String, prompts: List<String>): Result<WorksheetResponse> = runCatching {
+    suspend fun worksheet(
+        title: String,
+        prompts: List<String>,
+        nipunDomain: String = "Vocabulary"
+    ): Result<WorksheetResponse> = runCatching {
         try {
-            api.worksheet(WorksheetRequest(title, prompts))
+            api.worksheet(WorksheetRequest(title, prompts, nipunDomain))
         } catch (network: IOException) {
             val rows = prompts.mapIndexed { index, text ->
                 val local = translate(text).getOrThrow()
-                com.jansetu.sih26042.data.remote.WorksheetRow(index + 1, text.trim(), local.translatedText)
+                WorksheetRow(index + 1, text.trim(), local.translatedText, nipunDomain)
             }
-            WorksheetResponse(title, rows, "")
+            WorksheetResponse(title, nipunDomain, rows, "")
         }
     }
 
-    suspend fun flashcards(terms: List<String>): Result<List<Flashcard>> = runCatching {
+    suspend fun flashcards(
+        terms: List<String>,
+        nipunDomain: String = "Vocabulary"
+    ): Result<List<Flashcard>> = runCatching {
         try {
-            api.flashcards(FlashcardRequest(terms)).cards
+            api.flashcards(FlashcardRequest(terms, nipunDomain)).cards
         } catch (network: IOException) {
-            terms.map { text -> Flashcard(text.trim(), translate(text).getOrThrow().translatedText) }
+            terms.map { text ->
+                val local = translate(text).getOrThrow()
+                Flashcard(text.trim(), local.translatedText, "🔤", nipunDomain)
+            }
         }
     }
 }

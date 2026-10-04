@@ -1,6 +1,9 @@
 package com.jansetu.sih26042.ui.screens
 
+import android.app.ActivityManager
 import android.app.Application
+import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,18 +23,25 @@ import com.jansetu.sih26042.ui.OfflineViewModel
 
 @Composable
 fun OfflineScreen(onBack: () -> Unit) {
-    val app = LocalContext.current.applicationContext as Application
+    val context = LocalContext.current
+    val app = context.applicationContext as Application
     val vm: OfflineViewModel = viewModel(factory = AppViewModelFactory(app))
     val s = vm.state
+    val memoryInfo = ActivityManager.MemoryInfo()
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    activityManager.getMemoryInfo(memoryInfo)
+    val totalRamMb = memoryInfo.totalMem / (1024L * 1024L)
+
     LaunchedEffect(Unit) { vm.refresh() }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         ScreenHeader("Offline translation library", onBack)
+        Text("Device evidence: Android API ${Build.VERSION.SDK_INT} • RAM ${totalRamMb} MB")
         Text("Translations stored on this tablet: ${s.count}")
         Spacer(Modifier.height(10.dp))
         Text(
-            "JanSetu can sync the complete pre-translated Hindi vocabulary library from the backend. " +
-                "All downloaded Hindi → Santhali pairs are stored in Room/SQLite and work without internet."
+            "JanSetu can sync the translated Hindi vocabulary library from the backend. " +
+                "Downloaded Hindi → Santhali pairs are stored in Room/SQLite and work without internet."
         )
         Spacer(Modifier.height(16.dp))
 
@@ -57,8 +67,9 @@ fun OfflineScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(20.dp))
         Text(
-            "Words and sentences that are not in the local library still use the IndicTrans2 model " +
-                "when the backend is reachable, then are cached for future offline use."
+            "Offline behavior: exact cached phrases work directly. If an unseen sentence is made only " +
+                "from individually synced words, JanSetu can use a labeled word-composition fallback. " +
+                "New words still need the IndicTrans2 backend until an on-device neural model pack is added."
         )
     }
 }
