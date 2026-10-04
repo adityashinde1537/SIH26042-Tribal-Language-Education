@@ -1,0 +1,26 @@
+name: Translation Model Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/model-smoke.yml'
+      - 'backend/scripts/model_smoke.py'
+
+jobs:
+  translate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TRANSLATION_MODE: model
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Translate requested Hindi phrases
+        working-directory: backend
+        run: PYTHONPATH=. python scripts/model_smoke.py
