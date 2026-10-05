@@ -1,5 +1,7 @@
 package com.jansetu.sih26042.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.RecordVoiceOver
@@ -20,17 +23,24 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+private const val GITHUB_REPOSITORY =
+    "https://github.com/adityashinde1537/SIH26042-Tribal-Language-Education"
+
+private const val PROTOTYPE_COMPLETION = 0.85f
 
 @Composable
 fun HomeScreen(
@@ -40,6 +50,8 @@ fun HomeScreen(
     onLibrary: () -> Unit,
     onOffline: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -74,6 +86,79 @@ fun HomeScreen(
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center
                 )
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text(
+                    "Prototype completion",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "85% Complete",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = PROTOTYPE_COMPLETION,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Core Android app, Hindi → Santhali translation, Ol Chiki validation, offline library, voice workflow and NIPUN materials are implemented. Remaining work is mainly native-speaker validation, target-device latency proof and final field testing.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Code,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.padding(5.dp))
+                    Text(
+                        "GitHub Repository",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "adityashinde1537/SIH26042-Tribal-Language-Education",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_REPOSITORY))
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open GitHub repository")
+                }
             }
         }
 
