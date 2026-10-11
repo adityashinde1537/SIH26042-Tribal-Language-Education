@@ -129,6 +129,9 @@ class MaterialsViewModel(private val repository: JanSetuRepository) : ViewModel(
 data class OfflineUiState(
     val modelInstalled: Boolean = false,
     val hindiSpeechInstalled: Boolean = false,
+    val santaliSpeechInstalled: Boolean = false,
+    val santaliSpeechBusy: Boolean = false,
+    val santaliSpeechMessage: String? = null,
     val hindiSpeechBusy: Boolean = false,
     val hindiSpeechMessage: String? = null,
     val modelBusy: Boolean = false,
@@ -150,8 +153,29 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
             count = repository.offlineCount(),
             modelInstalled = repository.offlineModelInstalled(),
             hindiSpeechInstalled = repository.offlineHindiSpeechInstalled(),
+            santaliSpeechInstalled = repository.offlineSantaliSpeechInstalled(),
             backendUrl = repository.backendUrl()
         )
+    }
+
+    fun installOfflineSantaliSpeech() = viewModelScope.launch {
+        if (state.santaliSpeechBusy) return@launch
+        state = state.copy(santaliSpeechBusy = true, santaliSpeechMessage = "Downloading offline Santhali voice…")
+        runCatching {
+            repository.installOfflineSantaliSpeech { progress ->
+                viewModelScope.launch(Dispatchers.Main) {
+                    state = state.copy(santaliSpeechMessage = progress)
+                }
+            }
+        }.onSuccess {
+            state = state.copy(
+                santaliSpeechBusy = false,
+                santaliSpeechInstalled = repository.offlineSantaliSpeechInstalled(),
+                santaliSpeechMessage = "Santhali voice model installed. Test pronunciation."
+            )
+        }.onFailure { error ->
+            state = state.copy(santaliSpeechBusy = false, santaliSpeechMessage = error.message ?: "Download failed")
+        }
     }
 
     fun installOfflineHindiSpeech() = viewModelScope.launch {
