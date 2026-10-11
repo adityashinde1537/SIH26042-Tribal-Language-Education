@@ -24,6 +24,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.jansetu.sih26042.ui.speech.HindiAsrModelPack
 import com.jansetu.sih26042.ui.speech.HindiOfflineRecognizer
+import com.jansetu.sih26042.ui.speech.SantaliTtsPack
+import com.jansetu.sih26042.ui.speech.PiperSantaliVoice
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -44,6 +46,9 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
     val captureScope = rememberCoroutineScope()
     val recording = remember { mutableStateOf(false) }
     val stopRequested = remember { mutableStateOf(false) }
+    val voicePack = remember(context) { SantaliTtsPack(context) }
+    val piper = remember(context) { PiperSantaliVoice(voicePack) }
+    val speaking = remember { mutableStateOf(false) }
 
     fun captureUsingOfflineModel() {
         if (recording.value) { stopRequested.value = true; return }
@@ -109,6 +114,17 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
     }
 
     fun speakSantali() {
+        if (voicePack.ready()) {
+            speaking.value = true
+            ttsMessage.value = "Generating local Santhali speech…"
+            captureScope.launch {
+                runCatching { piper.speak(s.santhali) }
+                    .onSuccess { ttsMessage.value = null }
+                    .onFailure { ttsMessage.value = "Offline voice error: " + (it.message ?: "unknown") }
+                speaking.value = false
+            }
+            return
+        }
         if (!ttsReady.value) {
             ttsMessage.value = "Santali speech is not ready on this device."
             return
@@ -199,7 +215,7 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             Button(
                 onClick = ::speakSantali,
-                enabled = ttsReady.value,
+                enabled = !speaking.value && (voicePack.ready() || ttsReady.value),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("🔊 Speak Santali output")
