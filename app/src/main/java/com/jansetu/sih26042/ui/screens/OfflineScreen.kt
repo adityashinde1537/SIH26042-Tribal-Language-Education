@@ -87,6 +87,24 @@ fun OfflineScreen(onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(18.dp))
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Text("Offline Hindi microphone recognition", style = MaterialTheme.typography.titleMedium)
+                Text(if (s.hindiSpeechInstalled) {
+                    "Hindi ASR model installed. Microphone recording and transcription run entirely on the phone."
+                } else {
+                    "Install the Hindi CTC speech model once to speak without Google speech services, including Android 9 tablets."
+                })
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = vm::installOfflineHindiSpeech,
+                    enabled = !s.hindiSpeechBusy && !s.hindiSpeechInstalled,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (s.hindiSpeechBusy) "Downloading speech model…" else if (s.hindiSpeechInstalled) "Speech model installed" else "Install offline Hindi speech") }
+                s.hindiSpeechMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
         Text("Backend for full translation library", style = MaterialTheme.typography.titleMedium)
         Text(
             "Paste the API root URL. If you paste Swagger /docs, JanSetu will automatically remove /docs. Example: http://192.168.1.5:8000/"
