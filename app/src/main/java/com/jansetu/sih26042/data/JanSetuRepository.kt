@@ -241,9 +241,10 @@ class JanSetuRepository(
                 continue
             }
 
-            val generated = if (onDevice?.isInstalled() == true) {
+            val device = onDevice
+            val generated = if (device != null && device.isInstalled()) {
                 runCatching {
-                    withContext(Dispatchers.Default) { onDevice.translate(word).trim() }
+                    withContext(Dispatchers.Default) { device.translate(word).trim() }
                 }.getOrNull()?.takeIf(OlChikiValidation::isValid)
             } else {
                 null
