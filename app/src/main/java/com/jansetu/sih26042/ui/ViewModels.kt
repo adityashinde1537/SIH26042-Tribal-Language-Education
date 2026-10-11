@@ -128,6 +128,9 @@ class MaterialsViewModel(private val repository: JanSetuRepository) : ViewModel(
 
 data class OfflineUiState(
     val modelInstalled: Boolean = false,
+    val hindiSpeechInstalled: Boolean = false,
+    val hindiSpeechBusy: Boolean = false,
+    val hindiSpeechMessage: String? = null,
     val modelBusy: Boolean = false,
     val modelMessage: String? = null,
     val count: Int = 0,
@@ -146,8 +149,29 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
         state = state.copy(
             count = repository.offlineCount(),
             modelInstalled = repository.offlineModelInstalled(),
+            hindiSpeechInstalled = repository.offlineHindiSpeechInstalled(),
             backendUrl = repository.backendUrl()
         )
+    }
+
+    fun installOfflineHindiSpeech() = viewModelScope.launch {
+        if (state.hindiSpeechBusy) return@launch
+        state = state.copy(hindiSpeechBusy = true, hindiSpeechMessage = "Downloading offline Hindi recognizer…")
+        runCatching {
+            repository.installOfflineHindiSpeech { progress ->
+                viewModelScope.launch(Dispatchers.Main) {
+                    state = state.copy(hindiSpeechMessage = progress)
+                }
+            }
+        }.onSuccess {
+            state = state.copy(
+                hindiSpeechBusy = false,
+                hindiSpeechInstalled = repository.offlineHindiSpeechInstalled(),
+                hindiSpeechMessage = "Offline Hindi recognizer installed."
+            )
+        }.onFailure { error ->
+            state = state.copy(hindiSpeechBusy = false, hindiSpeechMessage = error.message ?: "Download failed")
+        }
     }
 
     fun installOfflineModel() = viewModelScope.launch {
