@@ -72,3 +72,31 @@ Android 9/2 GB memory, latency, Hindi speech recognition accuracy, Santali
 voice pronunciation, and the correctness of unseen-sentence translations.
 Android compilation and unit tests cannot validate these without test devices.
 
+
+
+## Strictly offline word-by-word glossary mode
+
+The Hindi → Santhali text screen includes a **Word by word** option.
+
+- Splits Hindi text into Unicode words, respecting Devanagari vowel marks
+  and discarding punctuation without changing word order or duplicates.
+- Looks up each complete word in the existing offline Room library.
+- When a word is absent and the *on-device* IndicTrans2 model pack has been
+  installed, attempts translation of the isolated word locally.
+- Validates generated text for clean Ol Chiki and saves acceptable responses
+  as local word glosses. Such machine glosses still require speaker review.
+- When neither a saved entry nor usable local AI result is available, shows
+  **Not available offline** instead of guessing a word meaning.
+- Makes **zero backend/network translation requests** in this mode.
+- Handles up to 60 words per request so low-memory phones do not attempt
+  unbounded sequential AI inference.
+
+A word-by-word gloss is intentionally not equivalent to a fluent translation:
+Hindi and Santhali differ in grammar, inflections, agreement and word order.
+Neither a 3,730-term Hindi source list nor any finite dictionary can translate
+literally every conceivable Hindi word. Model-generated meanings are not
+guaranteed accurate, especially for words without sentence context.
+
+**Verification:** Android CI and JVM tests check tokenization, duplicates,
+cached meaning lookup, missing entries, and invalid-script rejection.
+Actual IndicTrans2 on-device inference remains subject to real-phone tests.
