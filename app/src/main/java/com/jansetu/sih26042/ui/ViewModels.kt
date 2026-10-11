@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jansetu.sih26042.data.JanSetuRepository
 import com.jansetu.sih26042.data.LibraryItem
+import com.jansetu.sih26042.data.WordTranslationItem
 import com.jansetu.sih26042.data.remote.Flashcard
 import com.jansetu.sih26042.data.remote.WorksheetResponse
 import kotlinx.coroutines.launch
@@ -16,6 +17,8 @@ import kotlinx.coroutines.launch
 data class TranslationUiState(
     val input: String = "",
     val output: String = "",
+    val wordMode: Boolean = false,
+    val wordResults: List<WordTranslationItem> = emptyList(),
     val busy: Boolean = false,
     val message: String? = null,
     val latencyMs: Long? = null,
@@ -27,23 +30,59 @@ class TranslationViewModel(private val repository: JanSetuRepository) : ViewMode
     var state by mutableStateOf(TranslationUiState())
         private set
 
-    fun onInput(value: String) { state = state.copy(input = value, output = "", message = null) }
+    fun onInput(value: String) {
+        state = state.copy(input = value, output = "", wordResults = emptyList(), message = null)
+    }
+
+    fun setWordMode(enabled: Boolean) {
+        if (state.busy) return
+        state = state.copy(
+            wordMode = enabled, output = "", wordResults = emptyList(),
+            message = null, source = "", latencyMs = null
+        )
+    }
 
     fun translate() {
         val text = state.input.trim()
         if (text.isBlank() || state.busy) return
         viewModelScope.launch {
-            state = state.copy(busy = true, message = null)
-            repository.translate(text).onSuccess {
-                state = state.copy(
-                    busy = false,
-                    output = it.translatedText,
-                    latencyMs = it.latencyMs,
-                    source = it.source,
-                    offline = it.offline
-                )
-            }.onFailure {
-                state = state.copy(busy = false, message = it.message ?: "Translation failed")
+            state = state.copy(
+                busy = true, message = null, output = "",
+                wordResults = emptyList()
+            )
+
+            if (state.wordMode) {
+                repository.translateWordByWord(text).onSuccess { result ->
+                    val missing = result.words.size - result.available
+                    state = state.copy(
+                        busy = false, wordResults = result.words,
+                        offline = true, source = "local-word-glossary",
+                        message = if (missing > 0) {
+                            "$missing word(s) unavailable offline. Install the local AI model " +
+                                "or sync a verified dictionary. Unavailable words are not guessed."
+                        } else null
+                    )
+                }.onFailure {
+                    state = state.copy(
+                        busy = false,
+                        message = it.message ?: "Offline word translation failed."
+                    )
+                }
+            } else {
+                repository.translate(text).onSuccess {
+                    state = state.copy(
+                        busy = false,
+                        output = it.translatedText,
+                        latencyMs = it.latencyMs,
+                        source = it.source,
+                        offline = it.offline
+                    )
+                }.onFailure {
+                    state = state.copy(
+                        busy = false,
+                        message = it.message ?: "Translation failed"
+                    )
+                }
             }
         }
     }
