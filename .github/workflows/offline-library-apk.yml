@@ -1,0 +1,73 @@
+name: Full Offline Library APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/offline-library-apk.yml'
+      - 'backend/scripts/build_lexicon.py'
+      - 'backend/scripts/export_android_offline_library.py'
+      - 'backend/app/services/translation.py'
+      - 'backend/app/services/lexicon.py'
+      - 'backend/data/hindi_open_lexicon.txt'
+      - 'backend/data/lexicon_sources/**'
+      - 'app/src/main/java/com/jansetu/sih26042/JanSetuApplication.kt'
+      - 'app/src/main/java/com/jansetu/sih26042/data/local/BundledLibraryImporter.kt'
+
+jobs:
+  build-full-offline-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      TRANSLATION_MODE: model
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install translation dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Translate complete Hindi source lexicon
+        working-directory: backend
+        run: PYTHONPATH=. python scripts/build_lexicon.py
+
+      - name: Export complete Android offline library
+        working-directory: backend
+        run: PYTHONPATH=. python scripts/export_android_offline_library.py
+
+      - name: Verify bundled library size
+        run: |
+          test -s app/src/main/assets/offline_library.tsv
+          echo "Bundled rows: $(wc -l < app/src/main/assets/offline_library.tsv)"
+          test "$(wc -l < app/src/main/assets/offline_library.tsv)" -ge 3000
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2'
+
+      - name: Build full-offline JanSetu APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Upload full-offline APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: jansetu-full-offline-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload generated offline library
+        uses: actions/upload-artifact@v4
+        with:
+          name: jansetu-offline-library-tsv
+          path: app/src/main/assets/offline_library.tsv
+          if-no-files-found: error
