@@ -53,6 +53,24 @@ fun OfflineScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(14.dp))
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
+                Text("AI translation directly on this device", style = MaterialTheme.typography.titleMedium)
+                Text(if (s.modelInstalled) {
+                    "Installed: IndicTrans2 offline model. Unseen Hindi sentences can be translated without the backend."
+                } else {
+                    "Not installed. Download the pinned IndicTrans2 model over Wi-Fi once (roughly 450 MB), then translate offline. Requires about 850 MB of free storage."
+                })
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = vm::installOfflineModel,
+                    enabled = !s.modelBusy && !s.modelInstalled,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (s.modelBusy) "Downloading model…" else if (s.modelInstalled) "Model installed" else "Install offline AI model") }
+                s.modelMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
                 Text("Built-in presentation demo", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "The tested classroom examples are bundled inside the APK, so this demo does not need Wi-Fi, mobile data, or a running backend."
