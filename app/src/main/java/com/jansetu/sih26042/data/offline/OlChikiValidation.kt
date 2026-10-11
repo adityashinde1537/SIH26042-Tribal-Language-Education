@@ -4,6 +4,6 @@ package com.jansetu.sih26042.data.offline
 object OlChikiValidation {
     fun isValid(text: String): Boolean {
         val letters = text.filter { it.isLetter() }
-        return letters.size >= 2 && letters.all { it.code in 0x1C50..0x1C7F }
+        return letters.length >= 2 && letters.all { it.code in 0x1C50..0x1C7F }
     }
 }
