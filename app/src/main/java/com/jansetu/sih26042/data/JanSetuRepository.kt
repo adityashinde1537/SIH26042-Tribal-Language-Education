@@ -1,5 +1,8 @@
 package com.jansetu.sih26042.data
 
+import com.jansetu.sih26042.data.offline.OnDeviceTranslator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.jansetu.sih26042.data.local.TranslationDao
 import com.jansetu.sih26042.data.local.TranslationEntity
 import com.jansetu.sih26042.data.remote.ApiFactory
@@ -34,7 +37,8 @@ data class LibraryItem(
 )
 
 class JanSetuRepository(
-    private val dao: TranslationDao
+    private val dao: TranslationDao,
+    private val onDevice: OnDeviceTranslator? = null
 ) {
     private fun normalize(text: String): String = text.trim().replace(Regex("\\s+"), " ")
 
@@ -46,6 +50,14 @@ class JanSetuRepository(
         "नमस्ते, आप कैसे हैं?" to "ᱦᱚᱞᱮ, ᱟᱢ ᱪᱮᱫ ᱞᱮᱠᱟ?",
         "आज मौसम अच्छा है।" to "ᱛᱮᱦᱮᱧ ᱦᱚᱭᱦᱩᱫᱤᱥ ᱱᱟᱯᱟᱭ ᱠᱟᱱᱟ ᱾"
     )
+
+    fun offlineModelInstalled(): Boolean = onDevice?.isInstalled() == true
+
+    fun offlineModelMissingFiles(): List<String> = onDevice?.missingFiles() ?: emptyList()
+
+    suspend fun installOfflineModel(progress: (String) -> Unit) {
+        requireNotNull(onDevice) { "Offline runtime not configured." }.install(progress)
+    }
 
     fun backendUrl(): String = ApiFactory.backendUrl()
 
@@ -146,6 +158,13 @@ class JanSetuRepository(
             )
         }
 
+        // Completely disconnected generation: use the installed neural model before any API call.
+        if (onDevice?.isInstalled() == true) {
+            val output = withContext(Dispatchers.Default) { onDevice.translate(source) }
+            dao.upsert(TranslationEntity(source, output, "on-device-indictrans2"))
+            return@runCatching TranslationResult(output, null, "on-device-indictrans2", true)
+        }
+
         try {
             val response = ApiFactory.api().translate(TranslationRequest(source))
             dao.upsert(TranslationEntity(source, response.translatedText, response.engine))
@@ -156,7 +175,7 @@ class JanSetuRepository(
             composeOffline(source)
                 ?: throw IOException(
                     "No offline translation is available for this sentence. " +
-                        "Check the backend connection or use a bundled demo phrase.",
+                        "Install the offline AI model in Offline translation library or connect the backend.",
                     network
                 )
         }
