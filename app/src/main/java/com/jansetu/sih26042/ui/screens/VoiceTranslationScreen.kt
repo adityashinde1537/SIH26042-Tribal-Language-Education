@@ -28,7 +28,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jansetu.sih26042.ui.AppViewModelFactory
 import com.jansetu.sih26042.ui.VoiceViewModel
 import com.jansetu.sih26042.ui.speech.HindiSpeechRecognizer
-import java.util.Locale
 
 @Composable
 fun VoiceTranslationScreen(onBack: () -> Unit) {
@@ -93,12 +92,13 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
             return
         }
 
-        val languageResult = tts.setLanguage(Locale("sat", "IN"))
-        if (
-            languageResult == TextToSpeech.LANG_MISSING_DATA ||
-            languageResult == TextToSpeech.LANG_NOT_SUPPORTED
-        ) {
-            ttsMessage.value = "Santali TTS voice data is not installed on this device."
+        // No network audio: only voices declared local by the installed TTS engine.
+        val offlineSantaliVoice = tts.voices?.firstOrNull { voice ->
+            voice.locale.language.equals("sat", ignoreCase = true) &&
+                !voice.isNetworkConnectionRequired
+        }
+        if (offlineSantaliVoice == null || tts.setVoice(offlineSantaliVoice) != TextToSpeech.SUCCESS) {
+            ttsMessage.value = "An offline Santhali voice is not installed. Ol Chiki text remains available."
             return
         }
 
@@ -128,7 +128,7 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
                 )
                 Text(
                     if (speech.isAvailable) {
-                        "JanSetu now listens inside the app instead of opening Google Voice Search."
+                        "JanSetu accepts only installed on-device Hindi recognition. It never sends classroom audio to a cloud fallback."
                     } else {
                         "Speech service is unavailable; Hindi text translation still works."
                     },
