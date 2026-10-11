@@ -30,7 +30,7 @@ class HindiSpeechRecognizer(
 
     val modeLabel: String
         get() = when {
-            recognizer == null -> "Speech recognition unavailable"
+            recognizer == null -> "Offline Hindi recognizer unavailable (install on-device Hindi speech data)"
             usingOnDevice -> "On-device Hindi speech recognition"
             else -> "System Hindi speech recognition"
         }
@@ -47,7 +47,8 @@ class HindiSpeechRecognizer(
                 usingOnDevice = false
             }
         }
-        return createSystemRecognizer()
+        // Network-capable recognizers are intentionally disabled in strict offline mode.
+        return null
     }
 
     private fun createSystemRecognizer(): SpeechRecognizer? {
@@ -72,14 +73,13 @@ class HindiSpeechRecognizer(
             // Only force offline when we are actually using Android's on-device
             // recognizer. The system fallback must be allowed to use network
             // recognition if the Hindi offline model is not installed.
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, usingOnDevice)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
 
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         }
 
     fun startListening() {
-        fallbackAttempted = false
         startCurrentRecognizer()
     }
 
@@ -159,13 +159,7 @@ class HindiSpeechRecognizer(
     override fun onEndOfSpeech() = Unit
 
     override fun onError(error: Int) {
-        if (
-            usingOnDevice &&
-            (error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
-                error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
-        ) {
-            if (switchToSystemAndRetry()) return
-        }
+        // Never retry via the network-capable system recognizer.
         onErrorMessage(errorMessage(error))
     }
 
