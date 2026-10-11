@@ -44,8 +44,9 @@ present. This is different from the older exact-match Room cache or word concate
   Hindi sentence, and verify the Santhali output is Ol Chiki.
 - Android voice mode now disallows the network-capable recognizer fallback. Voice
   input needs a Hindi on-device recognizer and language data on Android 12+.
-- Speech output only accepts an installed Santhali TTS voice marked offline by
-  Android. There is **no bundled Santhali voice model yet**.
+- Speech output first tries an optionally installed, experimental Santali Piper ONNX
+  model stored on the device. If it is unavailable, only a locally installed
+  Android Santhali TTS voice is permitted.
 
 ### Important remaining tests
 
@@ -55,6 +56,19 @@ Android 9 / 2 GB RAM memory benchmark before claiming production readiness.
 A first-run model download needs ample storage and Wi-Fi. Upstream model/script
 compatibility can change, which is why this build pins its model revision.
 
-A standalone offline Hindi ASR for Android 9 and a verified bundled Santhali TTS
-would require separate model integration. A fully offline speech-to-speech pipeline
-is not complete solely because text translation runs on-device.
+A separate Hindi IndicConformer/Sherpa ONNX speech pack can now be installed
+from the Offline screen. Its model and tokens remain on the phone and are used
+for 16 kHz microphone transcription on Android 9+. The teacher taps to start
+and taps again to finish recording (12-second safety limit). The existing
+Android on-device recognizer is a fallback only on supported Android 12+ devices.
+
+The optional Santhali Piper voice pack uses the config's published Ol Chiki
+phoneme mapping and synthesizes through ONNX Runtime + AudioTrack. If a model
+requires a different phonemizer, the app reports an error rather than
+fabricating pronunciations. It is **experimental and not classroom validated**.
+
+**Unverified:** end-to-end model downloads, tokenizer native-library load,
+Android 9/2 GB memory, latency, Hindi speech recognition accuracy, Santali
+voice pronunciation, and the correctness of unseen-sentence translations.
+Android compilation and unit tests cannot validate these without test devices.
+
