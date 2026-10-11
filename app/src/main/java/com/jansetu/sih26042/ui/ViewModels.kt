@@ -3,6 +3,8 @@ package com.jansetu.sih26042.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jansetu.sih26042.data.JanSetuRepository
@@ -125,6 +127,9 @@ class MaterialsViewModel(private val repository: JanSetuRepository) : ViewModel(
 }
 
 data class OfflineUiState(
+    val modelInstalled: Boolean = false,
+    val modelBusy: Boolean = false,
+    val modelMessage: String? = null,
     val count: Int = 0,
     val busy: Boolean = false,
     val message: String? = null,
@@ -140,8 +145,30 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
     fun refresh() = viewModelScope.launch {
         state = state.copy(
             count = repository.offlineCount(),
+            modelInstalled = repository.offlineModelInstalled(),
             backendUrl = repository.backendUrl()
         )
+    }
+
+    fun installOfflineModel() = viewModelScope.launch {
+        if (state.modelBusy) return@launch
+        state = state.copy(modelBusy = true, modelMessage = "Installing offline AI model. Use Wi-Fi (about 450 MB).")
+        runCatching {
+            repository.installOfflineModel { progress ->
+                // Installer runs on IO thread; dispatch state changes onto the Main dispatcher.
+                viewModelScope.launch(Dispatchers.Main) {
+                    state = state.copy(modelMessage = progress)
+                }
+            }
+        }.onSuccess {
+            state = state.copy(
+                modelBusy = false,
+                modelInstalled = repository.offlineModelInstalled(),
+                modelMessage = "Model installed. Test an unfamiliar sentence in airplane mode."
+            )
+        }.onFailure { error ->
+            state = state.copy(modelBusy = false, modelMessage = error.message ?: "Download failed")
+        }
     }
 
     fun backendUrl(value: String) {
