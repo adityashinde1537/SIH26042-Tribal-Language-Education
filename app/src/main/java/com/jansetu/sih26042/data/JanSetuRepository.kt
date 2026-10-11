@@ -1,5 +1,6 @@
 package com.jansetu.sih26042.data
 
+import com.jansetu.sih26042.ui.speech.SantaliTtsPack
 import com.jansetu.sih26042.ui.speech.HindiAsrModelPack
 import com.jansetu.sih26042.data.offline.OnDeviceTranslator
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +41,8 @@ data class LibraryItem(
 class JanSetuRepository(
     private val dao: TranslationDao,
     private val onDevice: OnDeviceTranslator? = null,
-    private val hindiSpeech: HindiAsrModelPack? = null
+    private val hindiSpeech: HindiAsrModelPack? = null,
+    private val santhaliSpeech: SantaliTtsPack? = null
 ) {
     private fun normalize(text: String): String = text.trim().replace(Regex("\\s+"), " ")
 
@@ -52,6 +54,12 @@ class JanSetuRepository(
         "नमस्ते, आप कैसे हैं?" to "ᱦᱚᱞᱮ, ᱟᱢ ᱪᱮᱫ ᱞᱮᱠᱟ?",
         "आज मौसम अच्छा है।" to "ᱛᱮᱦᱮᱧ ᱦᱚᱭᱦᱩᱫᱤᱥ ᱱᱟᱯᱟᱭ ᱠᱟᱱᱟ ᱾"
     )
+
+    fun offlineSantaliSpeechInstalled(): Boolean = santhaliSpeech?.ready() == true
+
+    suspend fun installOfflineSantaliSpeech(progress: (String) -> Unit) {
+        requireNotNull(santhaliSpeech) { "Santhali voice not configured." }.install(progress)
+    }
 
     fun offlineHindiSpeechInstalled(): Boolean = hindiSpeech?.ready() == true
 
