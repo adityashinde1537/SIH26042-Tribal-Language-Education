@@ -3,6 +3,8 @@ package com.jansetu.sih26042.data
 import com.jansetu.sih26042.ui.speech.SantaliTtsPack
 import com.jansetu.sih26042.ui.speech.HindiAsrModelPack
 import com.jansetu.sih26042.data.offline.OnDeviceTranslator
+import com.jansetu.sih26042.data.offline.HindiWordTokenizer
+import com.jansetu.sih26042.data.offline.OlChikiValidation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.jansetu.sih26042.data.local.TranslationDao
@@ -24,6 +26,18 @@ data class TranslationResult(
     val source: String,
     val offline: Boolean
 )
+
+enum class WordTranslationStatus { SAVED, AI_GENERATED, NOT_AVAILABLE }
+
+data class WordTranslationItem(
+    val hindi: String,
+    val santhali: String?,
+    val status: WordTranslationStatus
+)
+
+data class WordByWordResult(val words: List<WordTranslationItem>) {
+    val available: Int get() = words.count { it.santhali != null }
+}
 
 data class LexiconSyncResult(
     val downloaded: Int,
@@ -195,6 +209,57 @@ class JanSetuRepository(
                     network
                 )
         }
+    }
+
+    /**
+     * Strictly local word-by-word mode: NEVER calls the backend, including
+     * when the model is absent or generation fails.
+     *
+     * Word-by-word glosses are NOT grammatical sentence translations.
+     */
+    suspend fun translateWordByWord(text: String): Result<WordByWordResult> = runCatching {
+        val words = HindiWordTokenizer.words(text)
+        require(words.isNotEmpty()) { "Enter at least one Hindi word." }
+        require(words.size <= 60) { "Translate up to 60 words at a time." }
+
+        val distinct = words.distinct()
+        val saved = dao.findMany(distinct)
+            .filter { OlChikiValidation.isValid(it.translatedText) }
+            .associateBy { it.sourceText }
+
+        // Only newly generated *single-word* entries are stored as glossary items.
+        // Each distinct word is processed once, even if repeated in the input.
+        val resolved = mutableMapOf<String, WordTranslationItem>()
+        for (word in distinct) {
+            val local = saved[word]
+            if (local != null) {
+                resolved[word] = WordTranslationItem(
+                    hindi = word,
+                    santhali = local.translatedText,
+                    status = WordTranslationStatus.SAVED
+                )
+                continue
+            }
+
+            val generated = if (onDevice?.isInstalled() == true) {
+                runCatching {
+                    withContext(Dispatchers.Default) { onDevice.translate(word).trim() }
+                }.getOrNull()?.takeIf(OlChikiValidation::isValid)
+            } else {
+                null
+            }
+
+            if (generated != null) {
+                dao.upsert(TranslationEntity(word, generated, "on-device-word-gloss"))
+                resolved[word] = WordTranslationItem(word, generated, WordTranslationStatus.AI_GENERATED)
+            } else {
+                // Show missing data clearly; do not fabricate translations
+                // by reusing Hindi letters or guessing from phrase fragments.
+                resolved[word] = WordTranslationItem(word, null, WordTranslationStatus.NOT_AVAILABLE)
+            }
+        }
+
+        WordByWordResult(words.map { resolved.getValue(it) })
     }
 
     suspend fun syncSeed(): Result<Int> = runCatching {
