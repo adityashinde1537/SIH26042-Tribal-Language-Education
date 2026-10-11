@@ -2,6 +2,8 @@ package com.jansetu.sih26042
 
 import android.app.Application
 import com.jansetu.sih26042.data.JanSetuRepository
+import com.jansetu.sih26042.data.offline.OfflineModelPack
+import com.jansetu.sih26042.data.offline.OnDeviceTranslator
 import com.jansetu.sih26042.data.local.BundledLibraryImporter
 import com.jansetu.sih26042.data.local.JanSetuDatabase
 import com.jansetu.sih26042.data.remote.ApiFactory
@@ -22,7 +24,7 @@ class JanSetuApplication : Application() {
 
         val database = JanSetuDatabase.create(this)
         val dao = database.translationDao()
-        repository = JanSetuRepository(dao)
+        repository = JanSetuRepository(dao, OnDeviceTranslator(OfflineModelPack(this)))
 
         // The presentation APK can include the complete pre-translated lexicon.
         // Importing is idempotent because sourceText is the Room primary key.
