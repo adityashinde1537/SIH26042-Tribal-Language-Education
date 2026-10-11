@@ -116,7 +116,7 @@ class OnDeviceTranslator(private val pack: OfflineModelPack) : Closeable {
         }
         val safeOutput = outputIds.map { if (it < tgtLimit) it else unk }.toLongArray()
         val translated = checkNotNull(targetTokenizer).decode(safeOutput, true).trim()
-        require(translated.any { it.code in 0x1C50..0x1C7F }) {
+        require(OlChikiValidation.isValid(translated)) {
             "AI did not return Ol Chiki text; the model output needs review."
         }
         return translated
