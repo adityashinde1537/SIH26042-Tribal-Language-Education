@@ -240,6 +240,18 @@ class JanSetuRepository(
         }
     }
 
+    private suspend fun localWorksheet(
+        title: String,
+        prompts: List<String>,
+        nipunDomain: String
+    ): WorksheetResponse {
+        val rows = prompts.mapIndexed { index, text ->
+            val local = translate(text).getOrThrow()
+            WorksheetRow(index + 1, text.trim(), local.translatedText, nipunDomain)
+        }
+        return WorksheetResponse(title, nipunDomain, rows, "")
+    }
+
     suspend fun worksheet(
         title: String,
         prompts: List<String>,
@@ -247,16 +259,21 @@ class JanSetuRepository(
     ): Result<WorksheetResponse> = runCatching {
         try {
             ApiFactory.api().worksheet(WorksheetRequest(title, prompts, nipunDomain))
-        } catch (http: HttpException) {
-            throw httpProblem(http, "/materials/worksheet")
-        } catch (network: IOException) {
-            val rows = prompts.mapIndexed { index, text ->
-                val local = translate(text).getOrThrow()
-                WorksheetRow(index + 1, text.trim(), local.translatedText, nipunDomain)
-            }
-            WorksheetResponse(title, nipunDomain, rows, "")
+        } catch (_: HttpException) {
+            localWorksheet(title, prompts, nipunDomain)
+        } catch (_: IOException) {
+            localWorksheet(title, prompts, nipunDomain)
         }
     }
+
+    private suspend fun localFlashcards(
+        terms: List<String>,
+        nipunDomain: String
+    ): List<Flashcard> =
+        terms.map { text ->
+            val local = translate(text).getOrThrow()
+            Flashcard(text.trim(), local.translatedText, "🔤", nipunDomain)
+        }
 
     suspend fun flashcards(
         terms: List<String>,
@@ -264,13 +281,10 @@ class JanSetuRepository(
     ): Result<List<Flashcard>> = runCatching {
         try {
             ApiFactory.api().flashcards(FlashcardRequest(terms, nipunDomain)).cards
-        } catch (http: HttpException) {
-            throw httpProblem(http, "/materials/flashcards")
-        } catch (network: IOException) {
-            terms.map { text ->
-                val local = translate(text).getOrThrow()
-                Flashcard(text.trim(), local.translatedText, "🔤", nipunDomain)
-            }
+        } catch (_: HttpException) {
+            localFlashcards(terms, nipunDomain)
+        } catch (_: IOException) {
+            localFlashcards(terms, nipunDomain)
         }
     }
 }
