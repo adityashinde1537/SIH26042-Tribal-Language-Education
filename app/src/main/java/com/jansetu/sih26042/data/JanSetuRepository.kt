@@ -1,5 +1,6 @@
 package com.jansetu.sih26042.data
 
+import com.jansetu.sih26042.ui.speech.HindiAsrModelPack
 import com.jansetu.sih26042.data.offline.OnDeviceTranslator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,7 +39,8 @@ data class LibraryItem(
 
 class JanSetuRepository(
     private val dao: TranslationDao,
-    private val onDevice: OnDeviceTranslator? = null
+    private val onDevice: OnDeviceTranslator? = null,
+    private val hindiSpeech: HindiAsrModelPack? = null
 ) {
     private fun normalize(text: String): String = text.trim().replace(Regex("\\s+"), " ")
 
@@ -50,6 +52,12 @@ class JanSetuRepository(
         "नमस्ते, आप कैसे हैं?" to "ᱦᱚᱞᱮ, ᱟᱢ ᱪᱮᱫ ᱞᱮᱠᱟ?",
         "आज मौसम अच्छा है।" to "ᱛᱮᱦᱮᱧ ᱦᱚᱭᱦᱩᱫᱤᱥ ᱱᱟᱯᱟᱭ ᱠᱟᱱᱟ ᱾"
     )
+
+    fun offlineHindiSpeechInstalled(): Boolean = hindiSpeech?.ready() == true
+
+    suspend fun installOfflineHindiSpeech(progress: (String) -> Unit) {
+        requireNotNull(hindiSpeech) { "Hindi recognizer is not configured." }.install(progress)
+    }
 
     fun offlineModelInstalled(): Boolean = onDevice?.isInstalled() == true
 
