@@ -20,6 +20,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.jansetu.sih26042.ui.speech.HindiAsrModelPack
+import com.jansetu.sih26042.ui.speech.HindiOfflineRecognizer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -35,6 +39,24 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
     val app = context.applicationContext as Application
     val vm: VoiceViewModel = viewModel(factory = AppViewModelFactory(app))
     val s = vm.state
+    val hindiPack = remember(context) { HindiAsrModelPack(context) }
+    val offlineSpeech = remember(context) { HindiOfflineRecognizer(context, hindiPack) }
+    val captureScope = rememberCoroutineScope()
+    val recording = remember { mutableStateOf(false) }
+    val stopRequested = remember { mutableStateOf(false) }
+
+    fun captureUsingOfflineModel() {
+        if (recording.value) { stopRequested.value = true; return }
+        recording.value = true
+        stopRequested.value = false
+        vm.beginCycle()
+        captureScope.launch {
+            val result = runCatching { offlineSpeech.listen { stopRequested.value } }
+            recording.value = false
+            result.onSuccess(vm::recognized)
+                .onFailure { vm.fail(it.message ?: "Offline Hindi transcription failed.") }
+        }
+    }
 
     val ttsReady = remember { mutableStateOf(false) }
     val ttsMessage = remember { mutableStateOf<String?>(null) }
@@ -67,7 +89,7 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            speech.startListening()
+            if (hindiPack.ready()) captureUsingOfflineModel() else speech.startListening()
         } else {
             vm.fail("Microphone permission is required for voice mode.")
         }
@@ -80,7 +102,7 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
                 Manifest.permission.RECORD_AUDIO
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            speech.startListening()
+            if (hindiPack.ready()) captureUsingOfflineModel() else speech.startListening()
         } else {
             permission.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -123,11 +145,13 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
                 Text(
-                    "Speech input: " + speech.modeLabel,
+                    "Speech input: " + if (hindiPack.ready()) "Offline Hindi CTC speech model" else speech.modeLabel,
                     style = MaterialTheme.typography.titleSmall
                 )
                 Text(
-                    if (speech.isAvailable) {
+                    if (hindiPack.ready()) {
+                        "Hindi microphone transcription runs entirely on the phone. Tap Stop to finish speaking."
+                    } else if (speech.isAvailable) {
                         "JanSetu accepts only installed on-device Hindi recognition. It never sends classroom audio to a cloud fallback."
                     } else {
                         "Speech service is unavailable; Hindi text translation still works."
@@ -139,11 +163,11 @@ fun VoiceTranslationScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.height(16.dp))
         Button(
-            onClick = ::startHindiSpeech,
-            enabled = !s.busy && speech.isAvailable,
+            onClick = { if (recording.value) stopRequested.value = true else startHindiSpeech() },
+            enabled = recording.value || (!s.busy && (hindiPack.ready() || speech.isAvailable)),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (s.busy) "Listening / translating…" else "🎤 Speak Hindi")
+            Text(if (recording.value) "■ Stop recording" else if (s.busy) "Translating…" else "🎤 Speak Hindi")
         }
 
         s.message?.let {
