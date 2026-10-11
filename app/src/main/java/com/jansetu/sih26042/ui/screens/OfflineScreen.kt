@@ -105,6 +105,24 @@ fun OfflineScreen(onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(18.dp))
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Text("Offline Santhali audio (experimental)", style = MaterialTheme.typography.titleMedium)
+                Text(if (s.santaliSpeechInstalled) {
+                    "Santhali Piper voice installed. Test sound quality and Ol Chiki pronunciation before classroom use."
+                } else {
+                    "Optionally install a Santhali Piper voice model. No cloud speech service is required after installation."
+                })
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = vm::installOfflineSantaliSpeech,
+                    enabled = !s.santaliSpeechBusy && !s.santaliSpeechInstalled,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (s.santaliSpeechBusy) "Downloading voice model…" else if (s.santaliSpeechInstalled) "Voice installed" else "Install Santhali voice") }
+                s.santaliSpeechMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
         Text("Backend for full translation library", style = MaterialTheme.typography.titleMedium)
         Text(
             "Paste the API root URL. If you paste Swagger /docs, JanSetu will automatically remove /docs. Example: http://192.168.1.5:8000/"
