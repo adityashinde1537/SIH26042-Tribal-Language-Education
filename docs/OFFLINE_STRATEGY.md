@@ -27,3 +27,76 @@ For an entirely disconnected device to translate never-before-seen input, a quan
 - Database size after full lexicon + curriculum content.
 - Offline ASR availability for Hindi.
 - Offline Santhali TTS/voice availability.
+
+
+## On-device neural translation branch (experimental)
+
+The Android app now has a user-triggered **Install offline AI model** action on the
+Offline translation library screen. It downloads a *pinned* IndicTrans2 ONNX INT8
+encoder, cached decoder, external weight data, and two tokenizers into private app
+storage. The neural translator runs before any network request whenever the pack is
+present. This is different from the older exact-match Room cache or word concatenation.
+
+- Model: `hari31416/indictrans2-indic-indic-dist-320M-ONNX-int8`
+- Snapshot revision: `b04956dee2f2a3e06e44bf09f8d654a6b81af99a`
+- Runtime: ONNX Runtime Android and DJL Android Rust tokenizer JNI
+- Usage: install once online, then put the phone in airplane mode, type a **new**
+  Hindi sentence, and verify the Santhali output is Ol Chiki.
+- Android voice mode now disallows the network-capable recognizer fallback. Voice
+  input needs a Hindi on-device recognizer and language data on Android 12+.
+- Speech output first tries an optionally installed, experimental Santali Piper ONNX
+  model stored on the device. If it is unavailable, only a locally installed
+  Android Santhali TTS voice is permitted.
+
+### Important remaining tests
+
+This branch has not been certified on a physical Android phone. Run a clean APK
+build, a model download and load test, a new-sentence airplane-mode test, and an
+Android 9 / 2 GB RAM memory benchmark before claiming production readiness.
+A first-run model download needs ample storage and Wi-Fi. Upstream model/script
+compatibility can change, which is why this build pins its model revision.
+
+A separate Hindi IndicConformer/Sherpa ONNX speech pack can now be installed
+from the Offline screen. Its model and tokens remain on the phone and are used
+for 16 kHz microphone transcription on Android 9+. The teacher taps to start
+and taps again to finish recording (12-second safety limit). The existing
+Android on-device recognizer is a fallback only on supported Android 12+ devices.
+
+The optional Santhali Piper voice pack uses the config's published Ol Chiki
+phoneme mapping and synthesizes through ONNX Runtime + AudioTrack. If a model
+requires a different phonemizer, the app reports an error rather than
+fabricating pronunciations. It is **experimental and not classroom validated**.
+
+**Unverified:** end-to-end model downloads, tokenizer native-library load,
+Android 9/2 GB memory, latency, Hindi speech recognition accuracy, Santali
+voice pronunciation, and the correctness of unseen-sentence translations.
+Android compilation and unit tests cannot validate these without test devices.
+
+
+
+## Strictly offline word-by-word glossary mode
+
+The Hindi → Santhali text screen includes a **Word by word** option.
+
+- Splits Hindi text into Unicode words, respecting Devanagari vowel marks
+  and discarding punctuation without changing word order or duplicates.
+- Looks up each complete word in the existing offline Room library.
+- When a word is absent and the *on-device* IndicTrans2 model pack has been
+  installed, attempts translation of the isolated word locally.
+- Validates generated text for clean Ol Chiki and saves acceptable responses
+  as local word glosses. Such machine glosses still require speaker review.
+- When neither a saved entry nor usable local AI result is available, shows
+  **Not available offline** instead of guessing a word meaning.
+- Makes **zero backend/network translation requests** in this mode.
+- Handles up to 60 words per request so low-memory phones do not attempt
+  unbounded sequential AI inference.
+
+A word-by-word gloss is intentionally not equivalent to a fluent translation:
+Hindi and Santhali differ in grammar, inflections, agreement and word order.
+Neither a 3,730-term Hindi source list nor any finite dictionary can translate
+literally every conceivable Hindi word. Model-generated meanings are not
+guaranteed accurate, especially for words without sentence context.
+
+**Verification:** Android CI and JVM tests check tokenization, duplicates,
+cached meaning lookup, missing entries, and invalid-script rejection.
+Actual IndicTrans2 on-device inference remains subject to real-phone tests.

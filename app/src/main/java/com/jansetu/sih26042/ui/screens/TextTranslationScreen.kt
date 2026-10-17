@@ -14,6 +14,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import com.jansetu.sih26042.data.WordTranslationStatus
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,6 +49,44 @@ fun TextTranslationScreen(onBack: () -> Unit) {
     ) {
         ScreenHeader("Hindi → Santhali", onBack)
 
+        Text("Choose translation mode", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (s.wordMode) {
+                OutlinedButton(
+                    onClick = { vm.setWordMode(false) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Full sentence") }
+                Button(
+                    onClick = { vm.setWordMode(true) },
+                    enabled = !s.busy,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Word by word") }
+            } else {
+                Button(
+                    onClick = { vm.setWordMode(false) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Full sentence") }
+                OutlinedButton(
+                    onClick = { vm.setWordMode(true) },
+                    enabled = !s.busy,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Word by word") }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (s.wordMode) {
+                "Always offline: each Hindi word is shown separately. Cached glossary first; installed on-device AI for unknown words. No backend requests."
+            } else {
+                "Translate a complete Hindi sentence into Santhali."
+            },
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(Modifier.height(12.dp))
         Text("Quick demo phrases", style = MaterialTheme.typography.titleSmall)
         demoPhrases.forEach { phrase ->
             AssistChip(
@@ -59,7 +101,7 @@ fun TextTranslationScreen(onBack: () -> Unit) {
             value = s.input,
             onValueChange = vm::onInput,
             label = { Text("Hindi classroom text") },
-            supportingText = { Text("Source: Hindi • Output: Santhali in Ol Chiki") },
+            supportingText = { Text(if (s.wordMode) "Offline Hindi words → individual Santhali glosses" else "Source: Hindi • Output: Santhali in Ol Chiki") },
             modifier = Modifier.fillMaxWidth().height(160.dp)
         )
 
@@ -72,7 +114,7 @@ fun TextTranslationScreen(onBack: () -> Unit) {
             if (s.busy) {
                 CircularProgressIndicator(Modifier.height(20.dp), strokeWidth = 2.dp)
             } else {
-                Text("Translate to Ol Chiki")
+                Text(if (s.wordMode) "Translate words offline" else "Translate to Ol Chiki")
             }
         }
 
@@ -80,6 +122,42 @@ fun TextTranslationScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             Card(Modifier.fillMaxWidth()) {
                 Text(it, modifier = Modifier.padding(12.dp))
+            }
+        }
+
+        if (s.wordMode && s.wordResults.isNotEmpty()) {
+            Spacer(Modifier.height(18.dp))
+            val available = s.wordResults.count { it.santhali != null }
+            Text(
+                "Offline word glossary: $available / ${s.wordResults.size} translated",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "These are separate word meanings, not a grammatical sentence translation. Check AI-generated meanings with a Santhali speaker.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Spacer(Modifier.height(10.dp))
+            s.wordResults.forEachIndexed { index, word ->
+                Card(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("${index + 1}. ${word.hindi}", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            word.santhali ?: "Not available offline",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            when (word.status) {
+                                WordTranslationStatus.SAVED -> "Saved offline glossary"
+                                WordTranslationStatus.AI_GENERATED -> "Generated on device • requires review"
+                                WordTranslationStatus.NOT_AVAILABLE -> "No local entry or usable AI translation"
+                            },
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
             }
         }
 

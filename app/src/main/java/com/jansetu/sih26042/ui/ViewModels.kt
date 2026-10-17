@@ -3,10 +3,13 @@ package com.jansetu.sih26042.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jansetu.sih26042.data.JanSetuRepository
 import com.jansetu.sih26042.data.LibraryItem
+import com.jansetu.sih26042.data.WordTranslationItem
 import com.jansetu.sih26042.data.remote.Flashcard
 import com.jansetu.sih26042.data.remote.WorksheetResponse
 import kotlinx.coroutines.launch
@@ -14,6 +17,8 @@ import kotlinx.coroutines.launch
 data class TranslationUiState(
     val input: String = "",
     val output: String = "",
+    val wordMode: Boolean = false,
+    val wordResults: List<WordTranslationItem> = emptyList(),
     val busy: Boolean = false,
     val message: String? = null,
     val latencyMs: Long? = null,
@@ -25,23 +30,59 @@ class TranslationViewModel(private val repository: JanSetuRepository) : ViewMode
     var state by mutableStateOf(TranslationUiState())
         private set
 
-    fun onInput(value: String) { state = state.copy(input = value, output = "", message = null) }
+    fun onInput(value: String) {
+        state = state.copy(input = value, output = "", wordResults = emptyList(), message = null)
+    }
+
+    fun setWordMode(enabled: Boolean) {
+        if (state.busy) return
+        state = state.copy(
+            wordMode = enabled, output = "", wordResults = emptyList(),
+            message = null, source = "", latencyMs = null
+        )
+    }
 
     fun translate() {
         val text = state.input.trim()
         if (text.isBlank() || state.busy) return
         viewModelScope.launch {
-            state = state.copy(busy = true, message = null)
-            repository.translate(text).onSuccess {
-                state = state.copy(
-                    busy = false,
-                    output = it.translatedText,
-                    latencyMs = it.latencyMs,
-                    source = it.source,
-                    offline = it.offline
-                )
-            }.onFailure {
-                state = state.copy(busy = false, message = it.message ?: "Translation failed")
+            state = state.copy(
+                busy = true, message = null, output = "",
+                wordResults = emptyList()
+            )
+
+            if (state.wordMode) {
+                repository.translateWordByWord(text).onSuccess { result ->
+                    val missing = result.words.size - result.available
+                    state = state.copy(
+                        busy = false, wordResults = result.words,
+                        offline = true, source = "local-word-glossary",
+                        message = if (missing > 0) {
+                            "$missing word(s) unavailable offline. Install the local AI model " +
+                                "or sync a verified dictionary. Unavailable words are not guessed."
+                        } else null
+                    )
+                }.onFailure {
+                    state = state.copy(
+                        busy = false,
+                        message = it.message ?: "Offline word translation failed."
+                    )
+                }
+            } else {
+                repository.translate(text).onSuccess {
+                    state = state.copy(
+                        busy = false,
+                        output = it.translatedText,
+                        latencyMs = it.latencyMs,
+                        source = it.source,
+                        offline = it.offline
+                    )
+                }.onFailure {
+                    state = state.copy(
+                        busy = false,
+                        message = it.message ?: "Translation failed"
+                    )
+                }
             }
         }
     }
@@ -125,6 +166,15 @@ class MaterialsViewModel(private val repository: JanSetuRepository) : ViewModel(
 }
 
 data class OfflineUiState(
+    val modelInstalled: Boolean = false,
+    val hindiSpeechInstalled: Boolean = false,
+    val santaliSpeechInstalled: Boolean = false,
+    val santaliSpeechBusy: Boolean = false,
+    val santaliSpeechMessage: String? = null,
+    val hindiSpeechBusy: Boolean = false,
+    val hindiSpeechMessage: String? = null,
+    val modelBusy: Boolean = false,
+    val modelMessage: String? = null,
     val count: Int = 0,
     val busy: Boolean = false,
     val message: String? = null,
@@ -140,8 +190,72 @@ class OfflineViewModel(private val repository: JanSetuRepository) : ViewModel() 
     fun refresh() = viewModelScope.launch {
         state = state.copy(
             count = repository.offlineCount(),
+            modelInstalled = repository.offlineModelInstalled(),
+            hindiSpeechInstalled = repository.offlineHindiSpeechInstalled(),
+            santaliSpeechInstalled = repository.offlineSantaliSpeechInstalled(),
             backendUrl = repository.backendUrl()
         )
+    }
+
+    fun installOfflineSantaliSpeech() = viewModelScope.launch {
+        if (state.santaliSpeechBusy) return@launch
+        state = state.copy(santaliSpeechBusy = true, santaliSpeechMessage = "Downloading offline Santhali voice…")
+        runCatching {
+            repository.installOfflineSantaliSpeech { progress ->
+                viewModelScope.launch(Dispatchers.Main) {
+                    state = state.copy(santaliSpeechMessage = progress)
+                }
+            }
+        }.onSuccess {
+            state = state.copy(
+                santaliSpeechBusy = false,
+                santaliSpeechInstalled = repository.offlineSantaliSpeechInstalled(),
+                santaliSpeechMessage = "Santhali voice model installed. Test pronunciation."
+            )
+        }.onFailure { error ->
+            state = state.copy(santaliSpeechBusy = false, santaliSpeechMessage = error.message ?: "Download failed")
+        }
+    }
+
+    fun installOfflineHindiSpeech() = viewModelScope.launch {
+        if (state.hindiSpeechBusy) return@launch
+        state = state.copy(hindiSpeechBusy = true, hindiSpeechMessage = "Downloading offline Hindi recognizer…")
+        runCatching {
+            repository.installOfflineHindiSpeech { progress ->
+                viewModelScope.launch(Dispatchers.Main) {
+                    state = state.copy(hindiSpeechMessage = progress)
+                }
+            }
+        }.onSuccess {
+            state = state.copy(
+                hindiSpeechBusy = false,
+                hindiSpeechInstalled = repository.offlineHindiSpeechInstalled(),
+                hindiSpeechMessage = "Offline Hindi recognizer installed."
+            )
+        }.onFailure { error ->
+            state = state.copy(hindiSpeechBusy = false, hindiSpeechMessage = error.message ?: "Download failed")
+        }
+    }
+
+    fun installOfflineModel() = viewModelScope.launch {
+        if (state.modelBusy) return@launch
+        state = state.copy(modelBusy = true, modelMessage = "Installing offline AI model. Use Wi-Fi (about 450 MB).")
+        runCatching {
+            repository.installOfflineModel { progress ->
+                // Installer runs on IO thread; dispatch state changes onto the Main dispatcher.
+                viewModelScope.launch(Dispatchers.Main) {
+                    state = state.copy(modelMessage = progress)
+                }
+            }
+        }.onSuccess {
+            state = state.copy(
+                modelBusy = false,
+                modelInstalled = repository.offlineModelInstalled(),
+                modelMessage = "Model installed. Test an unfamiliar sentence in airplane mode."
+            )
+        }.onFailure { error ->
+            state = state.copy(modelBusy = false, modelMessage = error.message ?: "Download failed")
+        }
     }
 
     fun backendUrl(value: String) {

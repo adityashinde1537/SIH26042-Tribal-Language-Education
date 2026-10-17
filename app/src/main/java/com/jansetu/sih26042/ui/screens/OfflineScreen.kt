@@ -53,6 +53,24 @@ fun OfflineScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(14.dp))
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
+                Text("AI translation directly on this device", style = MaterialTheme.typography.titleMedium)
+                Text(if (s.modelInstalled) {
+                    "Installed: IndicTrans2 offline model. Unseen Hindi sentences can be translated without the backend."
+                } else {
+                    "Not installed. Download the pinned IndicTrans2 model over Wi-Fi once (roughly 450 MB), then translate offline. Requires about 850 MB of free storage."
+                })
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = vm::installOfflineModel,
+                    enabled = !s.modelBusy && !s.modelInstalled,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (s.modelBusy) "Downloading model…" else if (s.modelInstalled) "Model installed" else "Install offline AI model") }
+                s.modelMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
                 Text("Built-in presentation demo", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "The tested classroom examples are bundled inside the APK, so this demo does not need Wi-Fi, mobile data, or a running backend."
@@ -68,6 +86,42 @@ fun OfflineScreen(onBack: () -> Unit) {
             }
         }
 
+        Spacer(Modifier.height(18.dp))
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Text("Offline Hindi microphone recognition", style = MaterialTheme.typography.titleMedium)
+                Text(if (s.hindiSpeechInstalled) {
+                    "Hindi ASR model installed. Microphone recording and transcription run entirely on the phone."
+                } else {
+                    "Install the Hindi CTC speech model once to speak without Google speech services, including Android 9 tablets."
+                })
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = vm::installOfflineHindiSpeech,
+                    enabled = !s.hindiSpeechBusy && !s.hindiSpeechInstalled,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (s.hindiSpeechBusy) "Downloading speech model…" else if (s.hindiSpeechInstalled) "Speech model installed" else "Install offline Hindi speech") }
+                s.hindiSpeechMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Text("Offline Santhali audio (experimental)", style = MaterialTheme.typography.titleMedium)
+                Text(if (s.santaliSpeechInstalled) {
+                    "Santhali Piper voice installed. Test sound quality and Ol Chiki pronunciation before classroom use."
+                } else {
+                    "Optionally install a Santhali Piper voice model. No cloud speech service is required after installation."
+                })
+                Spacer(Modifier.height(10.dp))
+                Button(
+                    onClick = vm::installOfflineSantaliSpeech,
+                    enabled = !s.santaliSpeechBusy && !s.santaliSpeechInstalled,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (s.santaliSpeechBusy) "Downloading voice model…" else if (s.santaliSpeechInstalled) "Voice installed" else "Install Santhali voice") }
+                s.santaliSpeechMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
         Spacer(Modifier.height(18.dp))
         Text("Backend for full translation library", style = MaterialTheme.typography.titleMedium)
         Text(

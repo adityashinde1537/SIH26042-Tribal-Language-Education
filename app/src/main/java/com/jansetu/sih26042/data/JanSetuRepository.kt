@@ -1,5 +1,12 @@
 package com.jansetu.sih26042.data
 
+import com.jansetu.sih26042.ui.speech.SantaliTtsPack
+import com.jansetu.sih26042.ui.speech.HindiAsrModelPack
+import com.jansetu.sih26042.data.offline.OnDeviceTranslator
+import com.jansetu.sih26042.data.offline.HindiWordTokenizer
+import com.jansetu.sih26042.data.offline.OlChikiValidation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.jansetu.sih26042.data.local.TranslationDao
 import com.jansetu.sih26042.data.local.TranslationEntity
 import com.jansetu.sih26042.data.remote.ApiFactory
@@ -20,6 +27,18 @@ data class TranslationResult(
     val offline: Boolean
 )
 
+enum class WordTranslationStatus { SAVED, AI_GENERATED, NOT_AVAILABLE }
+
+data class WordTranslationItem(
+    val hindi: String,
+    val santhali: String?,
+    val status: WordTranslationStatus
+)
+
+data class WordByWordResult(val words: List<WordTranslationItem>) {
+    val available: Int get() = words.count { it.santhali != null }
+}
+
 data class LexiconSyncResult(
     val downloaded: Int,
     val serverTotal: Int,
@@ -34,7 +53,10 @@ data class LibraryItem(
 )
 
 class JanSetuRepository(
-    private val dao: TranslationDao
+    private val dao: TranslationDao,
+    private val onDevice: OnDeviceTranslator? = null,
+    private val hindiSpeech: HindiAsrModelPack? = null,
+    private val santhaliSpeech: SantaliTtsPack? = null
 ) {
     private fun normalize(text: String): String = text.trim().replace(Regex("\\s+"), " ")
 
@@ -46,6 +68,26 @@ class JanSetuRepository(
         "नमस्ते, आप कैसे हैं?" to "ᱦᱚᱞᱮ, ᱟᱢ ᱪᱮᱫ ᱞᱮᱠᱟ?",
         "आज मौसम अच्छा है।" to "ᱛᱮᱦᱮᱧ ᱦᱚᱭᱦᱩᱫᱤᱥ ᱱᱟᱯᱟᱭ ᱠᱟᱱᱟ ᱾"
     )
+
+    fun offlineSantaliSpeechInstalled(): Boolean = santhaliSpeech?.ready() == true
+
+    suspend fun installOfflineSantaliSpeech(progress: (String) -> Unit) {
+        requireNotNull(santhaliSpeech) { "Santhali voice not configured." }.install(progress)
+    }
+
+    fun offlineHindiSpeechInstalled(): Boolean = hindiSpeech?.ready() == true
+
+    suspend fun installOfflineHindiSpeech(progress: (String) -> Unit) {
+        requireNotNull(hindiSpeech) { "Hindi recognizer is not configured." }.install(progress)
+    }
+
+    fun offlineModelInstalled(): Boolean = onDevice?.isInstalled() == true
+
+    fun offlineModelMissingFiles(): List<String> = onDevice?.missingFiles() ?: emptyList()
+
+    suspend fun installOfflineModel(progress: (String) -> Unit) {
+        requireNotNull(onDevice) { "Offline runtime not configured." }.install(progress)
+    }
 
     fun backendUrl(): String = ApiFactory.backendUrl()
 
@@ -146,6 +188,13 @@ class JanSetuRepository(
             )
         }
 
+        // Completely disconnected generation: use the installed neural model before any API call.
+        if (onDevice?.isInstalled() == true) {
+            val output = withContext(Dispatchers.Default) { onDevice.translate(source) }
+            dao.upsert(TranslationEntity(source, output, "on-device-indictrans2"))
+            return@runCatching TranslationResult(output, null, "on-device-indictrans2", true)
+        }
+
         try {
             val response = ApiFactory.api().translate(TranslationRequest(source))
             dao.upsert(TranslationEntity(source, response.translatedText, response.engine))
@@ -156,10 +205,62 @@ class JanSetuRepository(
             composeOffline(source)
                 ?: throw IOException(
                     "No offline translation is available for this sentence. " +
-                        "Check the backend connection or use a bundled demo phrase.",
+                        "Install the offline AI model in Offline translation library or connect the backend.",
                     network
                 )
         }
+    }
+
+    /**
+     * Strictly local word-by-word mode: NEVER calls the backend, including
+     * when the model is absent or generation fails.
+     *
+     * Word-by-word glosses are NOT grammatical sentence translations.
+     */
+    suspend fun translateWordByWord(text: String): Result<WordByWordResult> = runCatching {
+        val words = HindiWordTokenizer.words(text)
+        require(words.isNotEmpty()) { "Enter at least one Hindi word." }
+        require(words.size <= 60) { "Translate up to 60 words at a time." }
+
+        val distinct = words.distinct()
+        val saved = dao.findMany(distinct)
+            .filter { OlChikiValidation.isValid(it.translatedText) }
+            .associateBy { it.sourceText }
+
+        // Only newly generated *single-word* entries are stored as glossary items.
+        // Each distinct word is processed once, even if repeated in the input.
+        val resolved = mutableMapOf<String, WordTranslationItem>()
+        for (word in distinct) {
+            val local = saved[word]
+            if (local != null) {
+                resolved[word] = WordTranslationItem(
+                    hindi = word,
+                    santhali = local.translatedText,
+                    status = WordTranslationStatus.SAVED
+                )
+                continue
+            }
+
+            val device = onDevice
+            val generated = if (device != null && device.isInstalled()) {
+                runCatching {
+                    withContext(Dispatchers.Default) { device.translate(word).trim() }
+                }.getOrNull()?.takeIf(OlChikiValidation::isValid)
+            } else {
+                null
+            }
+
+            if (generated != null) {
+                dao.upsert(TranslationEntity(word, generated, "on-device-word-gloss"))
+                resolved[word] = WordTranslationItem(word, generated, WordTranslationStatus.AI_GENERATED)
+            } else {
+                // Show missing data clearly; do not fabricate translations
+                // by reusing Hindi letters or guessing from phrase fragments.
+                resolved[word] = WordTranslationItem(word, null, WordTranslationStatus.NOT_AVAILABLE)
+            }
+        }
+
+        WordByWordResult(words.map { resolved.getValue(it) })
     }
 
     suspend fun syncSeed(): Result<Int> = runCatching {
